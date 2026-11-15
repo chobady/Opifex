@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
-import { Bars } from './ui.jsx';
-import { TYPES, PRIORITY, isDone, isDoable, isOverdue, doneOn, whenLabel, relativeDate } from '../lib/model.js';
+import { Bars, Progress } from './ui.jsx';
+import { TYPES, PRIORITY, isDone, isDoable, isOverdue, doneOn, whenLabel, relativeDate, goalProgress, habitStreak, habitOf, weekCount, addDays, money, parsePrice } from '../lib/model.js';
 
 export function ItemMeta({ item, showType = false, showArea = true }) {
-  const { areaById, today } = useApp();
+  const { areaById, today, itemById } = useApp();
   const area = areaById[item.area];
+  const isHabit = item.type === 'abitudine';
+  const streak = isHabit ? habitStreak(item, today) : null;
+  const habit = isHabit ? habitOf(item) : null;
+  const progress = item.type === 'obiettivo' ? goalProgress(item, itemById) : null;
   const overdue = isOverdue(item, today);
   const w = item.when || {};
   const check = item.checklist || [];
@@ -50,8 +54,45 @@ export function ItemMeta({ item, showType = false, showArea = true }) {
           {links}
         </span>
       )}
+      {isHabit && streak.n > 0 && (
+        <span className="meta-bit meta-streak" title="Serie attuale">
+          <Icon name="Flame" size={13} strokeWidth={1.8} />
+          {streak.n} {streak.unit}
+        </span>
+      )}
+      {isHabit && habit.mode === 'times' && (
+        <span className="meta-bit">
+          {weekCount(item, today)}/{habit.perWeek} questa settimana
+        </span>
+      )}
+      {isHabit && habit.mode === 'weekdays' && <span className="meta-bit">Lun–Ven</span>}
+      {progress && (
+        <span className="meta-bit meta-goal">
+          <Icon name={progress.mode === 'measure' ? 'Gauge' : 'ListTodo'} size={13} strokeWidth={1.8} />
+          {progress.label}
+        </span>
+      )}
+      {item.someday && (
+        <span className="meta-bit">
+          <Icon name="Hourglass" size={13} strokeWidth={1.8} />
+          un giorno, forse
+        </span>
+      )}
       {item.status === 'waiting' && <span className="meta-bit">in attesa{item.waitingFor ? `: ${item.waitingFor}` : ''}</span>}
-      {item.type === 'oggetto' && item.price && <span className="meta-bit">{item.price}</span>}
+      {item.type === 'oggetto' && (item.paid ? <span className="meta-bit">pagato {money(parsePrice(item.paid) ?? 0)}</span> : item.price ? <span className="meta-bit">{item.price}</span> : null)}
+    </span>
+  );
+}
+
+// Gli ultimi sette giorni di un'abitudine: pallino pieno = fatto.
+function HabitDots({ item }) {
+  const { today } = useApp();
+  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  return (
+    <span className="habit-dots" aria-hidden="true">
+      {days.map((d) => (
+        <i key={d} className={doneOn(item, d) ? 'on' : ''} />
+      ))}
     </span>
   );
 }
@@ -59,7 +100,9 @@ export function ItemMeta({ item, showType = false, showArea = true }) {
 export function ItemRow({ item, star = false, showType = false, showArea = true, day = null }) {
   const { today, actions } = useApp();
   const [pop, setPop] = useState(false);
-  const done = isDone(item) || (day ? doneOn(item, day) : false);
+  const done = isDone(item) || (item.type === 'abitudine' ? doneOn(item, day || today) : day ? doneOn(item, day) : false);
+  const { itemById } = useApp();
+  const progress = item.type === 'obiettivo' ? goalProgress(item, itemById) : null;
   const doable = isDoable(item);
   const focused = item.focusDate === today;
   return (
@@ -87,8 +130,10 @@ export function ItemRow({ item, star = false, showType = false, showArea = true,
       <button className="row-main" onClick={() => actions.edit(item)}>
         <span className="row-title">{item.title || 'Senza titolo'}</span>
         <ItemMeta item={item} showType={showType} showArea={showArea} />
+        {progress && <Progress pct={progress.pct} />}
+        {item.type === 'abitudine' && <HabitDots item={item} />}
       </button>
-      {star && doable && !done && (
+      {star && doable && item.type !== 'abitudine' && !done && (
         <button
           className={`star ${focused ? 'on' : ''}`}
           aria-label={focused ? 'Togli dal focus di oggi' : 'Metti nel focus di oggi'}

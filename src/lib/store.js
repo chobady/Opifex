@@ -67,13 +67,13 @@ const localStore = {
 /* ---------- cloud ---------- */
 const cloudStore = {
   subscribe(uid, cb, onError) {
-    const state = { items: [], areas: [], settings: {}, got: { items: false, areas: false } };
+    const state = { items: [], areas: [], settings: {}, got: { items: false, areas: false, settings: false } };
     const push = () =>
       cb({
         items: state.items,
         areas: state.areas,
         settings: state.settings,
-        ready: state.got.items && state.got.areas,
+        ready: state.got.items && state.got.areas && state.got.settings,
       });
     const fail = (err) => onError && onError(err);
     const u1 = onSnapshot(
@@ -98,6 +98,7 @@ const cloudStore = {
       doc(db, 'users', uid, 'meta', 'settings'),
       (snap) => {
         state.settings = snap.data() || {};
+        state.got.settings = true;
         push();
       },
       fail,

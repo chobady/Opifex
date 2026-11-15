@@ -16,7 +16,7 @@ export function Calendar() {
   const [mode, setMode] = useState('week');
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
-  const dated = useMemo(() => items.filter((it) => it.when?.kind === 'date' && it.when.date), [items]);
+  const dated = useMemo(() => items.filter((it) => it.type !== 'diario' && !it.someday && it.when?.kind === 'date' && it.when.date), [items]);
 
   const forDay = (day) => {
     const list = dated.filter((it) => occursOn(it, day) || (it.recur && (it.doneLog || []).includes(day)));
@@ -93,7 +93,7 @@ export function Calendar() {
 
 function Agenda({ dated }) {
   const { items, today, actions } = useApp();
-  const open = items.filter((it) => !isDone(it));
+  const open = items.filter((it) => !isDone(it) && !it.someday && it.type !== 'diario' && it.type !== 'abitudine');
   const late = sortItems(open.filter((it) => isOverdue(it, today)));
   const upcoming = useMemo(() => {
     const out = [];

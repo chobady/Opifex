@@ -6,11 +6,11 @@ import { Capture } from '../components/Capture.jsx';
 import { Rings, RingsLegend, AreaRing } from '../components/Rings.jsx';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
-import { PRIORITIES, ringStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate } from '../lib/model.js';
+import { PRIORITIES, ringStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled } from '../lib/model.js';
 import { cloudEnabled } from '../lib/firebase.js';
 
 export function Today() {
-  const { items, areas, today, actions, ready } = useApp();
+  const { items, areas, today, actions, ready, settings } = useApp();
   const stats = useMemo(() => ringStats(items, today), [items, today]);
   const [celebrate, setCelebrate] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -31,7 +31,17 @@ export function Today() {
     return undefined;
   }, [stats, ready]);
 
-  const doable = items.filter(isDoable);
+  // "Giorno perfetto": tutti gli anelli in programma sono chiusi. Si ricorda nelle impostazioni.
+  useEffect(() => {
+    if (!ready) return;
+    const active = PRIORITIES.filter((p) => stats[p.id].total > 0);
+    const perfect = active.length > 0 && active.every((p) => stats[p.id].done >= stats[p.id].total);
+    const days = settings.perfectDays || [];
+    if (perfect && !days.includes(today)) actions.saveSettings({ perfectDays: [...days, today].slice(-400) });
+  }, [stats, ready, today, settings.perfectDays, actions]);
+
+  const doable = items.filter((it) => isDoable(it) && !it.someday && it.type !== 'abitudine');
+  const habits = items.filter((it) => it.type === 'abitudine' && !it.someday && habitScheduled(it, today));
   const focus = sortItems(doable.filter((it) => it.focusDate === today && !isDone(it) && !doneOn(it, today)));
   const focusIds = new Set(focus.map((it) => it.id));
   const due = doable.filter((it) => isDueToday(it, today) && !focusIds.has(it.id));
@@ -41,7 +51,7 @@ export function Today() {
   const doneToday = doable.filter((it) => doneOn(it, today));
   const inbox = items.filter((it) => it.type === 'nota' && !isDone(it)).length;
   const sortedAreas = [...areas].sort((a, b) => (a.order || 0) - (b.order || 0));
-  const nothing = !focus.length && !due.length && !doneToday.length;
+  const nothing = !focus.length && !due.length && !doneToday.length && !habits.length;
 
   return (
     <>
@@ -132,6 +142,17 @@ export function Today() {
               <div className="list">
                 {asap.map((it) => (
                   <ItemRow key={it.id} item={it} star />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {habits.length > 0 && (
+            <section>
+              <SectionTitle right={<span className="section-note">{habits.filter((h) => doneOn(h, today)).length}/{habits.length}</span>}>Abitudini</SectionTitle>
+              <div className="list">
+                {habits.map((it) => (
+                  <ItemRow key={it.id} item={it} />
                 ))}
               </div>
             </section>

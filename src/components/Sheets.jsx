@@ -5,7 +5,7 @@ import { sfx, soundEnabled, setSoundEnabled } from '../lib/sound.js';
 import { cloudEnabled, logout } from '../lib/firebase.js';
 import { Sheet, Field, Empty } from './ui.jsx';
 import { ItemRow, ItemMeta } from './ItemRow.jsx';
-import { TYPES, isDone, matches, sortItems, uid } from '../lib/model.js';
+import { TYPES, isDone, matches, sortItems, uid, parsePrice, money, todayStr } from '../lib/model.js';
 
 /* ---------- proposte dell'assistente ---------- */
 export function Proposals({ drafts, onEdit, onDiscard, onSaveAll, onClose }) {
@@ -49,7 +49,7 @@ export function Proposals({ drafts, onEdit, onDiscard, onSaveAll, onClose }) {
 export function SearchSheet({ onClose }) {
   const { items } = useApp();
   const [q, setQ] = useState('');
-  const results = useMemo(() => (q.trim() ? sortItems(items.filter((it) => matches(it, q))).slice(0, 60) : []), [items, q]);
+  const results = useMemo(() => (q.trim() ? sortItems(items.filter((it) => it.type !== 'diario' && matches(it, q))).slice(0, 60) : []), [items, q]);
   return (
     <Sheet title="Cerca" onClose={onClose}>
       <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca in tutto Opifex" aria-label="Cerca" autoFocus />
@@ -59,6 +59,57 @@ export function SearchSheet({ onClose }) {
         ))}
       </div>
       {q.trim() && !results.length && <Empty icon="Search" title="Nessun risultato" text="Prova con un'altra parola." />}
+    </Sheet>
+  );
+}
+
+/* ---------- oggetto comprato ---------- */
+export function BoughtSheet({ item, onClose }) {
+  const { actions, settings, today } = useApp();
+  const guess = parsePrice(item.price);
+  const [paid, setPaid] = useState(guess != null ? String(guess).replace('.', ',') : '');
+  const url = (settings.salvadanaioUrl || '').trim();
+
+  function confirm() {
+    const n = parsePrice(paid);
+    actions.save({
+      ...item,
+      status: 'done',
+      doneAt: today || todayStr(),
+      paid: n != null ? String(n) : '',
+      paidOn: today || todayStr(),
+    });
+    sfx.done();
+    onClose();
+    return n;
+  }
+  async function copyForSalvadanaio() {
+    const n = confirm();
+    const line = `${item.title}${n != null ? ` - ${money(n)}` : ''}`;
+    try {
+      await navigator.clipboard.writeText(line);
+      actions.toast('Comprato. Ho copiato la spesa: incollala in Salvadanaio.');
+    } catch {
+      actions.toast('Comprato. Non sono riuscito a copiare la spesa.');
+    }
+    if (url) window.open(url, '_blank', 'noopener');
+  }
+
+  return (
+    <Sheet title="Comprato" kicker={item.title} onClose={onClose}>
+      <label className="field">
+        <span className="field-label">Quanto l’hai pagato? (facoltativo)</span>
+        <input className="input" value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" placeholder="es. 24,90" autoFocus />
+      </label>
+      <button className="btn primary wide" onClick={confirm}>
+        <Icon name="Check" size={18} />
+        Segna comprato
+      </button>
+      <button className="btn ghost wide" onClick={copyForSalvadanaio}>
+        <Icon name="Wallet" size={18} />
+        Comprato e copia la spesa per Salvadanaio
+      </button>
+      {!url && <p className="field-hint">Nelle impostazioni puoi indicare l’indirizzo di Salvadanaio: lo apro dopo aver copiato la spesa.</p>}
     </Sheet>
   );
 }
@@ -208,8 +259,9 @@ export function AreaEditor({ area, onClose }) {
 
 /* ---------- impostazioni ---------- */
 export function SettingsSheet({ onClose }) {
-  const { user } = useApp();
+  const { user, settings, actions } = useApp();
   const [sound, setSound] = useState(soundEnabled());
+  const [sal, setSal] = useState(settings.salvadanaioUrl || '');
   return (
     <Sheet title="Impostazioni" onClose={onClose}>
       <button
@@ -240,6 +292,22 @@ export function SettingsSheet({ onClose }) {
         </span>
       </div>
 
+      <label className="setting static">
+        <Icon name="Wallet" size={20} />
+        <span className="setting-text">
+          <strong>Indirizzo di Salvadanaio</strong>
+          <input
+            className="input"
+            type="url"
+            value={sal}
+            onChange={(e) => setSal(e.target.value)}
+            onBlur={() => actions.saveSettings({ salvadanaioUrl: sal.trim() })}
+            placeholder="https://…"
+            aria-label="Indirizzo di Salvadanaio"
+          />
+        </span>
+      </label>
+
       <div className="setting static">
         <Icon name="Bell" size={20} />
         <span className="setting-text">
@@ -257,7 +325,7 @@ export function SettingsSheet({ onClose }) {
           </span>
         </button>
       )}
-      <p className="version">Opifex 0.1.0</p>
+      <p className="version">Opifex 0.2.0</p>
     </Sheet>
   );
 }

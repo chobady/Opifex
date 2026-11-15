@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
-import { Sheet, Chips, Field } from './ui.jsx';
-import { TYPES, TYPE_IDS, PRIORITIES, STATUSES, RECURS, isDoable, uid, matches, todayStr, addDays } from '../lib/model.js';
+import { Sheet, Chips, Field, Progress } from './ui.jsx';
+import { TYPES, TYPE_IDS, PRIORITIES, STATUSES, RECURS, HABIT_MODES, DEFAULT_HABIT, isDoable, uid, matches, todayStr, addDays, goalProgress, toNumber } from '../lib/model.js';
 
 const WHEN = [
   { id: 'none', label: 'Nessuna data' },
@@ -11,7 +11,7 @@ const WHEN = [
   { id: 'date', label: 'Data', icon: 'CalendarDays' },
 ];
 
-export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
+export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClose }) {
   const { areas, items, itemById, actions, today } = useApp();
   const [d, setD] = useState(item);
   const [step, setStep] = useState('');
@@ -21,11 +21,15 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
   const set = (patch) => setD((cur) => ({ ...cur, ...patch }));
   const setWhen = (patch) => setD((cur) => ({ ...cur, when: { ...cur.when, ...patch } }));
   const doable = isDoable(d);
+  const isHabit = d.type === 'abitudine';
+  const isGoal = d.type === 'obiettivo';
+  const habit = { ...DEFAULT_HABIT, ...(d.habit || {}) };
+  const progress = isGoal ? goalProgress(d, itemById) : null;
   const linked = (d.links || []).map((id) => itemById[id]).filter(Boolean);
   const candidates = useMemo(
     () =>
       linking
-        ? items.filter((it) => it.id !== d.id && !(d.links || []).includes(it.id) && matches(it, q)).slice(0, 30)
+        ? items.filter((it) => it.id !== d.id && it.type !== 'diario' && !(d.links || []).includes(it.id) && matches(it, q)).slice(0, 30)
         : [],
     [linking, items, d.id, d.links, q],
   );
@@ -44,8 +48,35 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
     } else if (!when.date) {
       when.date = todayStr();
     }
-    onSave({ ...d, title, when, recur: when.kind === 'date' ? d.recur : '' });
+    onSave(finalize(title, when));
   }
+
+  function finalize(title, when) {
+    let out = { ...d, title, when, recur: when.kind === 'date' ? d.recur : '' };
+    if (d.type === 'abitudine') out = { ...out, when: { kind: 'none', date: null, time: null }, recur: '', habit };
+    else out = { ...out, habit: d.habit };
+    if (d.type === 'obiettivo' && d.measure) {
+      const m = d.measure;
+      out = { ...out, measure: { start: toNumber(m.start) ?? 0, current: toNumber(m.current) ?? toNumber(m.start) ?? 0, target: toNumber(m.target) ?? 0, unit: (m.unit || '').trim() } };
+    } else out = { ...out, measure: null };
+    return out;
+  }
+
+  function act(kind) {
+    const title = d.title.trim();
+    if (!title) {
+      sfx.error();
+      actions.toast('Scrivi almeno un titolo.');
+      return;
+    }
+    const when = { ...d.when };
+    if (when.kind !== 'date') {
+      when.date = null;
+      when.time = null;
+    } else if (!when.date) when.date = todayStr();
+    onAction(finalize(title, when), kind);
+  }
+  const setMeasure = (patch) => setD((cur) => ({ ...cur, measure: { start: '', current: '', target: '', unit: '', ...(cur.measure || {}), ...patch } }));
 
   function addStep() {
     const t = step.trim();
@@ -93,6 +124,13 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
         </div>
       )}
 
+      {progress && (
+        <div className="goal-progress">
+          <Progress pct={progress.pct} />
+          <span>{progress.label}</span>
+        </div>
+      )}
+
       <label className="field">
         <span className="field-label">Titolo</span>
         <input
@@ -116,6 +154,70 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
         <Chips options={areaOptions} value={d.area || ''} onChange={(area) => set({ area: area || null })} label="Area" />
       </Field>
 
+      <Field label="Stato generale" hint={d.someday ? 'Non compare in Oggi né in Bacheca finché non lo riattivi.' : null}>
+        <Chips
+          options={[
+            { id: 'on', label: 'Attivo', icon: 'Zap' },
+            { id: 'someday', label: 'Un giorno, forse', icon: 'Hourglass' },
+          ]}
+          value={d.someday ? 'someday' : 'on'}
+          onChange={(v) => set({ someday: v === 'someday' })}
+          label="Stato generale"
+        />
+      </Field>
+
+      {isHabit && (
+        <Field label="Quanto spesso">
+          <Chips options={HABIT_MODES} value={habit.mode} onChange={(mode) => set({ habit: { ...habit, mode } })} label="Frequenza" />
+          {habit.mode === 'times' && (
+            <>
+              <span className="field-label sub">Quante volte a settimana</span>
+              <Chips
+                options={[1, 2, 3, 4, 5, 6].map((n) => ({ id: String(n), label: String(n) }))}
+                value={String(habit.perWeek)}
+                onChange={(n) => set({ habit: { ...habit, perWeek: Number(n) } })}
+                label="Volte a settimana"
+              />
+            </>
+          )}
+        </Field>
+      )}
+
+      {isGoal && (
+        <Field label="Come lo misuri?" hint={d.measure ? null : 'Con le tappe il progresso si calcola da solo: passi e impegni collegati fatti, sul totale.'}>
+          <Chips
+            options={[
+              { id: 'steps', label: 'Con le tappe', icon: 'ListTodo' },
+              { id: 'measure', label: 'Con un numero', icon: 'Gauge' },
+            ]}
+            value={d.measure ? 'measure' : 'steps'}
+            onChange={(v) => set({ measure: v === 'measure' ? { start: '', current: '', target: '', unit: '', ...(d.measure || {}) } : null })}
+            label="Misura"
+          />
+          {d.measure && (
+            <div className="measure-grid">
+              <label>
+                <span className="field-label sub">Parti da</span>
+                <input className="input" inputMode="decimal" value={d.measure.start ?? ''} onChange={(e) => setMeasure({ start: e.target.value })} placeholder="es. 82" />
+              </label>
+              <label>
+                <span className="field-label sub">Adesso</span>
+                <input className="input" inputMode="decimal" value={d.measure.current ?? ''} onChange={(e) => setMeasure({ current: e.target.value })} placeholder="es. 80" />
+              </label>
+              <label>
+                <span className="field-label sub">Arrivo</span>
+                <input className="input" inputMode="decimal" value={d.measure.target ?? ''} onChange={(e) => setMeasure({ target: e.target.value })} placeholder="es. 75" />
+              </label>
+              <label>
+                <span className="field-label sub">Unità</span>
+                <input className="input" value={d.measure.unit ?? ''} onChange={(e) => setMeasure({ unit: e.target.value })} placeholder="kg, €, libri…" />
+              </label>
+            </div>
+          )}
+        </Field>
+      )}
+
+      {!isHabit && (
       <Field label="Quando">
         <Chips options={WHEN} value={d.when.kind} onChange={(kind) => setWhen({ kind, date: kind === 'date' ? d.when.date || today : d.when.date })} label="Quando" />
         {d.when.kind === 'date' && (
@@ -151,8 +253,9 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
           </>
         )}
       </Field>
+      )}
 
-      {doable && (
+      {doable && !isHabit && (
         <Field label="Stato">
           <Chips options={STATUSES} value={d.status} onChange={(status) => set({ status })} label="Stato" />
           {d.status === 'waiting' && (
@@ -178,6 +281,13 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
             <input className="input" value={d.url || ''} onChange={(e) => set({ url: e.target.value })} placeholder="dove comprarlo" />
           </label>
         </div>
+      )}
+
+      {!isNew && d.type === 'problema' && (
+        <button type="button" className="btn primary wide advise-btn" onClick={() => act('advise')}>
+          <Icon name="Lightbulb" size={18} />
+          {d.advice ? 'Rivedi le soluzioni dell’assistente' : 'Chiedi un’opinione all’assistente'}
+        </button>
       )}
 
       <label className="field">
@@ -237,6 +347,12 @@ export function Editor({ item, isNew, banner, onSave, onDelete, onClose }) {
             </button>
           </div>
         ))}
+        {!isNew && (d.type === 'obiettivo' || d.type === 'problema') && (
+          <button type="button" className="btn ghost wide" onClick={() => act('newLinked')}>
+            <Icon name="Plus" size={18} />
+            {d.type === 'obiettivo' ? 'Aggiungi una tappa (impegno collegato)' : 'Aggiungi un impegno collegato'}
+          </button>
+        )}
         {!isNew &&
           (linking ? (
             <div className="link-picker">

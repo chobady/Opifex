@@ -38,25 +38,67 @@ export async function captureThought({ text, image, audio, areas }) {
   return Array.isArray(data.items) ? data.items : [];
 }
 
-export async function askAssistant({ question, history, items, areas }) {
+function compactItems(items, areas, limit = 300) {
   const today = todayStr();
   const areaName = Object.fromEntries(areas.map((a) => [a.id, a.name]));
-  const compact = items
+  return items
     .filter((it) => !isDone(it) || (it.doneAt && it.doneAt >= addDaysStr(today, -7)))
-    .slice(0, 300)
+    .slice(0, limit)
     .map((it) => ({
       tipo: it.type,
       titolo: it.title,
       area: areaName[it.area] || null,
       importanza: PRIORITY[it.priority]?.label || 'Normale',
-      stato: it.status,
+      stato: it.someday ? 'un giorno forse' : it.status,
       quando: it.when?.kind === 'asap' ? 'prima possibile' : it.when?.kind === 'date' ? `${it.when.date}${it.when.time ? ' ' + it.when.time : ''}` : null,
-      ricorrenza: it.recur || null,
+      ricorrenza: it.recur || (it.type === 'abitudine' ? it.habit?.mode || 'daily' : null),
       fattoIl: it.doneAt || null,
+      umore: it.mood || undefined,
       note: it.notes ? it.notes.slice(0, 200) : undefined,
     }));
-  const data = await call({ mode: 'chat', question, history: history.slice(-8), today, weekday: weekdayLong(today), data: compact });
+}
+
+export async function askAssistant({ question, history, items, areas }) {
+  const today = todayStr();
+  const data = await call({ mode: 'chat', question, history: history.slice(-8), today, weekday: weekdayLong(today), data: compactItems(items, areas) });
   return data.text || '';
+}
+
+const problemPayload = (item, areas) => ({
+  title: item.title,
+  notes: item.notes || '',
+  area: areas.find((a) => a.id === item.area)?.name || '',
+});
+
+// Soluzioni per un problema (con ricerca sul web lato server).
+export async function solveProblem({ item, areas, items, extra }) {
+  const today = todayStr();
+  const others = items.filter((it) => it.id !== item.id && (it.type === 'impegno' || it.type === 'abitudine') && !it.someday);
+  return call({
+    mode: 'solve',
+    problem: problemPayload(item, areas),
+    extra: extra || '',
+    today,
+    weekday: weekdayLong(today),
+    data: compactItems(others, areas, 120),
+  });
+}
+
+// Trasforma la soluzione scelta in impegni e oggetti da proporre.
+export async function planSolution({ item, solution, areas, items, extra }) {
+  const today = todayStr();
+  const others = items.filter((it) => it.id !== item.id && (it.type === 'impegno' || it.type === 'abitudine') && !it.someday);
+  const data = await call({
+    mode: 'plan',
+    problem: problemPayload(item, areas),
+    solution,
+    extra: extra || '',
+    areas: areas.map((a) => a.name),
+    today,
+    weekday: weekdayLong(today),
+    data: compactItems(others, areas, 120),
+  });
+  return Array.isArray(data.items) ? data.items : [];
 }
 
 function addDaysStr(s, n) {

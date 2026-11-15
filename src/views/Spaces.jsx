@@ -5,22 +5,23 @@ import { sfx } from '../lib/sound.js';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { AreaRing } from '../components/Rings.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
+import { SubHeader, Someday, Diary, Achievements, Stats } from './Extras.jsx';
 import { TYPES, isDone, sortItems, areaStats } from '../lib/model.js';
 
 const TILES = [
   { id: 'nota', text: 'Pensieri ancora da ordinare' },
   { id: 'impegno', text: 'Tutte le cose da fare' },
-  { id: 'obiettivo', text: 'Traguardi a cui stai lavorando' },
+  { id: 'obiettivo', text: 'Mete a cui stai lavorando' },
   { id: 'abitudine', text: 'Cose da ripetere con costanza' },
   { id: 'problema', text: 'Cose che non vanno, da risolvere' },
   { id: 'oggetto', text: 'Cose che ti servono' },
 ];
 
-const SOON = [
-  { icon: 'Hourglass', label: 'Un giorno, forse' },
-  { icon: 'NotebookPen', label: 'Diario' },
-  { icon: 'Medal', label: 'Traguardi' },
-  { icon: 'ChartNoAxesColumn', label: 'Statistiche' },
+const MORE = [
+  { id: 'forse', icon: 'Hourglass', label: 'Un giorno, forse', text: 'Idee e desideri senza fretta' },
+  { id: 'diario', icon: 'NotebookPen', label: 'Diario', text: 'Com’è andata, giorno per giorno' },
+  { id: 'traguardi', icon: 'Medal', label: 'Traguardi', text: 'Le medaglie che hai sbloccato' },
+  { id: 'statistiche', icon: 'ChartNoAxesColumn', label: 'Statistiche', text: 'Cosa stai davvero facendo' },
 ];
 
 const EMPTY_TEXT = {
@@ -41,6 +42,11 @@ export function Spaces() {
     setShowDone(false);
     actions.go('spazi', s);
   };
+
+  if (sub === 'forse') return <Someday onBack={() => setSub(null)} />;
+  if (sub === 'diario') return <Diary onBack={() => setSub(null)} />;
+  if (sub === 'traguardi') return <Achievements onBack={() => setSub(null)} />;
+  if (sub === 'statistiche') return <Stats onBack={() => setSub(null)} />;
 
   if (sub === 'aree') {
     const sorted = [...areas].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -85,7 +91,7 @@ export function Spaces() {
   }
 
   if (sub && TYPES[sub]) {
-    const all = items.filter((it) => it.type === sub);
+    const all = items.filter((it) => it.type === sub && !it.someday);
     const open = sortItems(all.filter((it) => !isDone(it)));
     const done = all.filter(isDone).sort((a, b) => ((a.doneAt || '') < (b.doneAt || '') ? 1 : -1));
     const closable = sub !== 'impegno' && sub !== 'abitudine';
@@ -96,6 +102,11 @@ export function Spaces() {
           {open.map((it) => (
             <div key={it.id} className="with-action">
               <ItemRow item={it} star={sub === 'impegno'} />
+              {sub === 'problema' && (
+                <button className="icon-btn boxed accent" aria-label={`Chiedi un’opinione: ${it.title}`} onClick={() => actions.advise(it)}>
+                  <Icon name="Lightbulb" size={18} />
+                </button>
+              )}
               {closable && (
                 <button className="icon-btn boxed" aria-label={`${sub === 'oggetto' ? 'Segna comprato' : 'Segna chiuso'}: ${it.title}`} onClick={() => actions.toggleDone(it)}>
                   <Icon name="Check" size={18} />
@@ -157,7 +168,7 @@ export function Spaces() {
 
       <div className="tiles">
         {TILES.map((t) => {
-          const n = items.filter((it) => it.type === t.id && !isDone(it)).length;
+          const n = items.filter((it) => it.type === t.id && !isDone(it) && !it.someday).length;
           return (
             <button key={t.id} className="tile" onClick={() => setSub(t.id)}>
               <span className="tile-icon">
@@ -179,33 +190,18 @@ export function Spaces() {
         </button>
       </div>
 
-      <SectionTitle>In arrivo</SectionTitle>
-      <div className="soon">
-        {SOON.map((s) => (
-          <span key={s.label} className="soon-item">
-            <Icon name={s.icon} size={18} />
-            {s.label}
-          </span>
+      <SectionTitle>Per capire e ricordare</SectionTitle>
+      <div className="tiles tiles-more">
+        {MORE.map((m) => (
+          <button key={m.id} className="tile" onClick={() => setSub(m.id)}>
+            <span className="tile-icon">
+              <Icon name={m.icon} size={22} />
+            </span>
+            <strong>{m.label}</strong>
+            <span className="tile-text">{m.text}</span>
+          </button>
         ))}
       </div>
     </div>
-  );
-}
-
-function SubHeader({ title, kicker, onBack, onAdd }) {
-  return (
-    <header className="topbar">
-      <button className="icon-btn boxed" aria-label="Indietro" onClick={onBack}>
-        <Icon name="ChevronLeft" />
-      </button>
-      <div className="brand grow">
-        <span className="kicker">{kicker}</span>
-        <h1>{title}</h1>
-      </div>
-      <button className="btn primary" onClick={onAdd}>
-        <Icon name="Plus" size={18} />
-        Nuovo
-      </button>
-    </header>
   );
 }

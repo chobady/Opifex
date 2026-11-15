@@ -99,3 +99,12 @@ export function Bars({ priority }) {
     </span>
   );
 }
+
+export function Progress({ pct, className = '' }) {
+  const v = Math.round(Math.max(0, Math.min(1, pct || 0)) * 100);
+  return (
+    <span className={`progress ${className} ${v >= 100 ? 'full' : ''}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={v}>
+      <i style={{ width: `${v}%` }} />
+    </span>
+  );
+}

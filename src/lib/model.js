@@ -7,8 +7,10 @@ export const TYPES = {
   problema: { label: 'Problema', plural: 'Problemi', icon: 'TriangleAlert' },
   oggetto: { label: 'Oggetto', plural: 'Oggetti', icon: 'ShoppingBag' },
   nota: { label: 'Nota', plural: 'Inbox', icon: 'Inbox' },
+  diario: { label: 'Diario', plural: 'Diario', icon: 'NotebookPen' },
 };
-export const TYPE_IDS = Object.keys(TYPES);
+// I tipi che si possono scegliere nell'editor (il diario ha la sua vista).
+export const TYPE_IDS = ['impegno', 'obiettivo', 'abitudine', 'problema', 'oggetto', 'nota'];
 
 export const PRIORITIES = [
   { id: 'critico', label: 'Critico', weight: 3 },
@@ -101,7 +103,15 @@ export function newItem(partial = {}) {
     links: [],
     waitingFor: '',
     price: '',
+    paid: '',
+    paidOn: null,
     url: '',
+    someday: false,
+    measure: null,
+    habit: null,
+    advice: null,
+    mood: null,
+    day: null,
     focusDate: null,
     doneAt: null,
     doneLog: [],
@@ -119,12 +129,113 @@ export function isOverdue(it, today = todayStr()) {
   return !isDone(it) && it.when?.kind === 'date' && !!it.when.date && it.when.date < today;
 }
 export function isDueToday(it, today = todayStr()) {
-  if (isDone(it)) return false;
+  if (isDone(it) || it.someday) return false;
+  if (it.type === 'abitudine') return habitDue(it, today);
   if (it.when?.kind === 'asap') return true;
   return it.when?.kind === 'date' && !!it.when.date && it.when.date <= today;
 }
 export function doneOn(it, day) {
   return (isDone(it) && it.doneAt === day) || (it.doneLog || []).includes(day);
+}
+
+/* ---------- abitudini ---------- */
+export const HABIT_MODES = [
+  { id: 'daily', label: 'Ogni giorno' },
+  { id: 'weekdays', label: 'Lun–Ven' },
+  { id: 'times', label: 'Alcune volte a settimana' },
+];
+export const DEFAULT_HABIT = { mode: 'daily', perWeek: 3 };
+export const habitOf = (it) => ({ ...DEFAULT_HABIT, ...(it.habit || {}) });
+
+const isWeekend = (day) => [0, 6].includes(fromStr(day).getDay());
+export function weekCount(it, day) {
+  const from = startOfWeek(day);
+  const to = addDays(from, 6);
+  return (it.doneLog || []).filter((d) => d >= from && d <= to).length;
+}
+// Il giorno e' "in programma" per l'abitudine?
+export function habitScheduled(it, day) {
+  const h = habitOf(it);
+  if (h.mode === 'weekdays') return !isWeekend(day);
+  if (h.mode === 'times') return doneOn(it, day) || weekCount(it, day) < h.perWeek;
+  return true;
+}
+export function habitDue(it, day = todayStr()) {
+  return !it.someday && !doneOn(it, day) && habitScheduled(it, day);
+}
+export function toggleHabitDay(it, day) {
+  const log = it.doneLog || [];
+  const next = log.includes(day) ? log.filter((d) => d !== day) : [...log, day].sort();
+  return { ...it, doneLog: next.slice(-400), updatedAt: Date.now() };
+}
+// Serie attuale: giorni di fila (o settimane, per "alcune volte a settimana").
+export function habitStreak(it, today = todayStr()) {
+  const h = habitOf(it);
+  const log = new Set(it.doneLog || []);
+  if (h.mode === 'times') {
+    let week = startOfWeek(today);
+    let n = 0;
+    const met = (w) => (it.doneLog || []).filter((d) => d >= w && d <= addDays(w, 6)).length >= h.perWeek;
+    if (!met(week)) week = addDays(week, -7);
+    while (n < 520 && met(week)) {
+      n += 1;
+      week = addDays(week, -7);
+    }
+    return { n, unit: n === 1 ? 'settimana' : 'settimane' };
+  }
+  let day = log.has(today) ? today : addDays(today, -1);
+  let n = 0;
+  for (let guard = 0; guard < 800; guard += 1) {
+    if (h.mode === 'weekdays' && isWeekend(day)) {
+      day = addDays(day, -1);
+      continue;
+    }
+    if (!log.has(day)) break;
+    n += 1;
+    day = addDays(day, -1);
+  }
+  return { n, unit: n === 1 ? 'giorno' : 'giorni' };
+}
+// Quanti dei giorni in programma negli ultimi `span` giorni sono stati fatti (0..1).
+export function habitRate(it, today = todayStr(), span = 30) {
+  const h = habitOf(it);
+  const from = addDays(today, -(span - 1));
+  const startDay = it.createdAt ? toStr(new Date(it.createdAt)) : from;
+  const begin = startDay > from ? startDay : from;
+  if (begin > today) return null;
+  const done = (it.doneLog || []).filter((d) => d >= begin && d <= today).length;
+  if (h.mode === 'times') {
+    const weeks = Math.max(1, (diffDays(today, begin) + 1) / 7);
+    return Math.min(1, done / (h.perWeek * weeks));
+  }
+  let planned = 0;
+  for (let d = begin; d <= today; d = addDays(d, 1)) if (h.mode === 'daily' || !isWeekend(d)) planned += 1;
+  return planned ? Math.min(1, done / planned) : null;
+}
+
+/* ---------- obiettivi ---------- */
+const num = (v) => {
+  const n = Number(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+};
+export { num as toNumber };
+// Progresso 0..1: da un numero (misurabile) oppure da passi e impegni collegati (tappe).
+export function goalProgress(it, byId = {}) {
+  const m = it.measure;
+  if (m) {
+    const start = num(m.start) ?? 0;
+    const cur = num(m.current) ?? start;
+    const target = num(m.target);
+    if (target === null || target === start) return null;
+    const pct = Math.max(0, Math.min(1, (cur - start) / (target - start)));
+    return { pct, mode: 'measure', label: `${m.current ?? start} / ${m.target}${m.unit ? ' ' + m.unit : ''}` };
+  }
+  const steps = it.checklist || [];
+  const linked = (it.links || []).map((id) => byId[id]).filter((x) => x && x.type === 'impegno');
+  const total = steps.length + linked.length;
+  if (!total) return null;
+  const done = steps.filter((c) => c.done).length + linked.filter(isDone).length;
+  return { pct: done / total, mode: 'steps', label: `${done} di ${total} tappe`, done, total };
 }
 
 export function nextOccurrence(dateStr, recur) {
@@ -232,7 +343,7 @@ export function areaStats(items, areaId, today = todayStr()) {
   let done = 0;
   let open = 0;
   for (const it of items) {
-    if (it.area !== areaId || !isDoable(it)) continue;
+    if (it.area !== areaId || !isDoable(it) || it.someday) continue;
     const recent = (isDone(it) && it.doneAt && it.doneAt >= from) || (it.doneLog || []).some((d) => d >= from);
     if (recent) done += 1;
     if (!isDone(it)) open += 1;
@@ -244,4 +355,22 @@ export function matches(it, q) {
   const s = q.trim().toLowerCase();
   if (!s) return true;
   return `${it.title} ${it.notes || ''} ${(it.checklist || []).map((c) => c.t).join(' ')}`.toLowerCase().includes(s);
+}
+
+/* ---------- storico e prezzi ---------- */
+export function parsePrice(v) {
+  const m = String(v ?? '').replace(/\./g, '').replace(',', '.').match(/\d+(\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+export const money = (n) => `${(Math.round(n * 100) / 100).toLocaleString('it-IT', { minimumFractionDigits: n % 1 ? 2 : 0 })} €`;
+
+// Tutte le volte che qualcosa e' stato fatto: [{day, item}].
+export function doneEvents(items) {
+  const out = [];
+  for (const it of items) {
+    if (it.type === 'diario') continue;
+    if (isDone(it) && it.doneAt && !(it.recur && it.when?.kind === 'date')) out.push({ day: it.doneAt, item: it });
+    for (const d of it.doneLog || []) out.push({ day: d, item: it });
+  }
+  return out;
 }

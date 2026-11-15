@@ -198,6 +198,20 @@ import {
   ExternalLink,
   CircleDot,
   HardDrive,
+  ShieldCheck,
+  Frown,
+  Meh,
+  Laugh,
+  Copy,
+  Heart,
+  Award,
+  TrendingUp,
+  CircleCheckBig,
+  Undo2,
+  Gauge,
+  CalendarCheck,
+  Wand2,
+  Link,
 } from 'lucide-react';
 
 const MAP = {
@@ -399,6 +413,20 @@ const MAP = {
   ExternalLink,
   CircleDot,
   HardDrive,
+  ShieldCheck,
+  Frown,
+  Meh,
+  Laugh,
+  Copy,
+  Heart,
+  Award,
+  TrendingUp,
+  CircleCheckBig,
+  Undo2,
+  Gauge,
+  CalendarCheck,
+  Wand2,
+  Link,
 };
 
 // Libreria di icone tra cui scegliere per le aree, a gruppi.

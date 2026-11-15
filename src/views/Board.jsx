@@ -3,14 +3,14 @@ import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
 import { ItemMeta } from '../components/ItemRow.jsx';
-import { STATUSES, isDoable, sortItems, addDays } from '../lib/model.js';
+import { STATUSES, sortItems, addDays } from '../lib/model.js';
 
 export function Board() {
   const { items, areas, today, actions } = useApp();
   const [area, setArea] = useState('');
   const [over, setOver] = useState(null);
   const recent = addDays(today, -14);
-  const pool = items.filter((it) => isDoable(it) && (!area || it.area === area));
+  const pool = items.filter((it) => it.type === 'impegno' && !it.someday && (!area || it.area === area));
 
   const column = (status) => {
     const list = pool.filter((it) => it.status === status);
