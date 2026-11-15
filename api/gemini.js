@@ -41,7 +41,7 @@ function httpError(status, message) {
   return e;
 }
 
-async function readBody(req) {
+export async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   if (typeof req.body === 'string') return JSON.parse(req.body || '{}');
   const chunks = [];
@@ -193,7 +193,7 @@ function normalizeItems(raw) {
     .filter((it) => it.title);
 }
 
-async function handleCapture(body) {
+export async function handleCapture(body) {
   const parts = [];
   const text = str(body.text, 4000);
   if (body.image?.data) parts.push({ inlineData: { mimeType: body.image.mime || 'image/jpeg', data: body.image.data } });

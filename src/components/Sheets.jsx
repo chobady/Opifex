@@ -63,6 +63,29 @@ export function SearchSheet({ onClose }) {
   );
 }
 
+function CopyLine({ label, value }) {
+  const { actions } = useApp();
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      actions.toast('Copiato.');
+    } catch {
+      actions.toast('Non sono riuscito a copiare: selezionalo a mano.');
+    }
+  }
+  return (
+    <div className="copy-line">
+      <span className="field-label sub">{label}</span>
+      <div className="copy-row">
+        <code>{value}</code>
+        <button type="button" className="icon-btn boxed" aria-label={`Copia: ${label}`} onClick={copy}>
+          <Icon name="Copy" size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- oggetto comprato ---------- */
 export function BoughtSheet({ item, onClose }) {
   const { actions, settings, today } = useApp();
@@ -307,6 +330,24 @@ export function SettingsSheet({ onClose }) {
           />
         </span>
       </label>
+
+      <section className="shortcut-box">
+        <h3>
+          <Icon name="Mic" size={18} /> Comandi Rapidi (dettatura)
+        </h3>
+        <p className="sheet-intro">
+          Un pulsante sulla Home dell’iPhone: lo tocchi, detti, e Opifex fa ordinare il pensiero a Gemini e lo salva da solo. Funziona anche sull’Apple Watch.
+        </p>
+        <CopyLine label="Indirizzo da usare nel comando" value={`${window.location.origin}/api/capture`} />
+        {user?.uid && <CopyLine label="Il tuo codice utente (va in OWNER_UID su Vercel)" value={user.uid} />}
+        <ol className="solution-steps">
+          <li>Su Vercel aggiungi le variabili CAPTURE_TOKEN (un codice segreto che inventi), OWNER_UID (quello qui sopra) e FIREBASE_SERVICE_ACCOUNT (la chiave di servizio di Firebase), poi Redeploy.</li>
+          <li>Nell’app Comandi crea un comando nuovo con l’azione “Detta testo” (lingua italiana).</li>
+          <li>Aggiungi “Ottieni contenuto di URL”: indirizzo qui sopra, metodo POST, corpo JSON con due campi di testo: text = il testo dettato, token = il tuo CAPTURE_TOKEN.</li>
+          <li>Aggiungi “Mostra notifica” con il risultato dell’azione precedente.</li>
+          <li>Chiama il comando “Opifex”, tocca i tre puntini in alto e scegli “Aggiungi alla schermata Home”.</li>
+        </ol>
+      </section>
 
       <div className="setting static">
         <Icon name="Bell" size={20} />

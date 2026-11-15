@@ -103,8 +103,9 @@ export function Spaces() {
             <div key={it.id} className="with-action">
               <ItemRow item={it} star={sub === 'impegno'} />
               {sub === 'problema' && (
-                <button className="icon-btn boxed accent" aria-label={`Chiedi un’opinione: ${it.title}`} onClick={() => actions.advise(it)}>
+                <button className="btn ghost opinion-btn" aria-label={`Chiedi un’opinione: ${it.title}`} onClick={() => actions.advise(it)}>
                   <Icon name="Lightbulb" size={18} />
+                  <span>Opinione</span>
                 </button>
               )}
               {closable && (

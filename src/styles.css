@@ -2581,6 +2581,50 @@ textarea.input {
   }
 }
 
+.opinion-btn {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 54px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--amber);
+  border-color: rgba(255, 176, 32, 0.45);
+}
+.shortcut-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.shortcut-box h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--display);
+  font-size: 15px;
+  color: var(--cyan);
+}
+.copy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.copy-row code {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--soft);
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
