@@ -349,6 +349,8 @@ export function stageStats(items, today = todayStr()) {
     if (it.type !== 'impegno' || it.someday) continue;
     if (doneOn(it, today)) out.done.push(it);
     else if (isDone(it)) continue;
+    // Un impegno destinato a un giorno futuro conta solo da quel giorno (se resta indietro, continua a contare).
+    else if (it.when?.kind === 'date' && it.when.date && it.when.date > today) continue;
     else if (it.status === 'doing' || it.status === 'waiting') out.doing.push(it);
     else if (isDueToday(it, today)) out.todo.push(it);
   }
