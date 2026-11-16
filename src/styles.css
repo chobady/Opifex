@@ -1201,6 +1201,53 @@ p {
   justify-content: flex-end;
   padding: 0 4px 2px;
 }
+.col-doing {
+  display: flex;
+  flex-direction: column;
+}
+.col-doing > .column-body {
+  flex: 1 0 auto;
+  min-height: 90px;
+}
+.waiting-zone > .column-body {
+  flex: 0 0 auto;
+}
+.waiting-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 0 auto;
+  min-height: 120px;
+  margin: 4px -4px -4px;
+  padding: 10px;
+  border: 1px dashed var(--line2);
+  border-radius: 12px;
+  background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(255, 176, 32, 0.035) 10px 20px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.waiting-zone.is-over {
+  border-color: var(--amber);
+  box-shadow: 0 0 16px rgba(255, 176, 32, 0.2);
+}
+.waiting-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--amber);
+}
+.waiting-head h3 {
+  flex: 1;
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.card.is-waiting {
+  border-style: dashed;
+  opacity: 0.9;
+}
 
 /* ---------- spazi ---------- */
 .tiles {
@@ -1880,7 +1927,7 @@ textarea.input {
   }
   .columns {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: 0;
     padding: 0;
     overflow: visible;
