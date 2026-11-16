@@ -1,0 +1,98 @@
+// Controllo periodico delle scadenze (lo chiama ogni 5 minuti GitHub Actions o un altro timer).
+// Protetto da CAPTURE_TOKEN. Manda una notifica:
+//  - per gli impegni con data e ora, "anticipo" minuti prima (impostazione, minimo 60);
+//  - per quelli con data senza ora, la mattina alle 9;
+//  - ogni mattina alle 9, un promemoria per le cose "prima possibile".
+import { fail, sameSecret, userDb, ownerUid, romeNow, romeToMs } from './_lib/fs.js';
+import { sendAll } from './_lib/push.js';
+
+const MORNING = '09:00';
+const PRIO = { critico: 'Critico', importante: 'Importante', normale: 'Normale' };
+
+function leadText(min) {
+  if (min >= 1440) return min < 2880 ? 'Domani' : `Tra ${Math.round(min / 1440)} giorni`;
+  if (min >= 60) return Math.round(min / 60) === 1 ? 'Tra 1 ora' : `Tra ${Math.round(min / 60)} ore`;
+  return `Tra ${min} minuti`;
+}
+
+export function plan(items, settings, now = Date.now()) {
+  const lead = Math.max(60, Number(settings.notifyLead) || 60);
+  const { date: today } = romeNow(new Date(now));
+  const out = [];
+  const open = items.filter((it) => it.type !== 'diario' && it.type !== 'abitudine' && it.status !== 'done' && !it.someday);
+  for (const it of open) {
+    const w = it.when || {};
+    if (w.kind !== 'date' || !w.date) continue;
+    if (w.time) {
+      const at = romeToMs(w.date, w.time);
+      const fire = at - lead * 60000;
+      const key = `${w.date} ${w.time} ${lead}`;
+      if (now >= fire && now < at && it.notified !== key)
+        out.push({
+          item: it,
+          key,
+          payload: {
+            title: `${leadText(Math.round((at - now) / 60000) < lead - 10 ? Math.max(1, Math.round((at - now) / 60000)) : lead)}: ${it.title}`,
+            body: `${w.date === today ? 'Oggi' : w.date.split('-').reverse().join('/')} alle ${w.time} · ${PRIO[it.priority] || 'Normale'}`,
+            tag: `it-${it.id}`,
+            url: '/',
+          },
+        });
+    } else {
+      const fire = romeToMs(w.date, MORNING);
+      const key = `${w.date} giorno`;
+      if (now >= fire && w.date === today && it.notified !== key)
+        out.push({ item: it, key, payload: { title: `Oggi: ${it.title}`, body: `${PRIO[it.priority] || 'Normale'} · senza un orario`, tag: `it-${it.id}`, url: '/' } });
+    }
+  }
+  const asap = open.filter((it) => it.when?.kind === 'asap');
+  let digest = null;
+  if (asap.length && now >= romeToMs(today, MORNING) && settings.lastAsapDigest !== today) {
+    const top = asap.sort((a, b) => (a.priority === 'critico' ? -1 : 0) - (b.priority === 'critico' ? -1 : 0)).slice(0, 3);
+    digest = {
+      title: asap.length === 1 ? 'Da fare prima possibile' : `${asap.length} cose da fare prima possibile`,
+      body: top.map((it) => it.title).join(' · '),
+      tag: 'asap',
+      url: '/',
+    };
+  }
+  return { due: out, digest, today };
+}
+
+export default async function handler(req, res) {
+  res.setHeader('cache-control', 'no-store');
+  try {
+    const url = new URL(req.url, 'http://x');
+    const given = req.headers['x-opifex-token'] || url.searchParams.get('token');
+    if (!sameSecret(given, process.env.CAPTURE_TOKEN)) throw fail(401, 'Codice non valido.');
+    const db = await userDb(ownerUid());
+    const [items, settings] = await Promise.all([db.list('items'), db.get('meta/settings')]);
+    const subs = settings.push || {};
+    const { due, digest, today } = plan(items, settings);
+    if (!Object.keys(subs).length) {
+      res.status(200).json({ ok: true, devices: 0, due: due.length, note: 'Nessun dispositivo iscritto alle notifiche.' });
+      return;
+    }
+    let sent = 0;
+    let alive = subs;
+    for (const d of due) {
+      const r = await sendAll(alive, d.payload);
+      alive = r.alive;
+      sent += r.sent;
+      await db.patch(`items/${d.item.id}`, { notified: d.key });
+    }
+    const patch = {};
+    if (digest) {
+      const r = await sendAll(alive, digest);
+      alive = r.alive;
+      sent += r.sent;
+      patch.lastAsapDigest = today;
+    }
+    if (Object.keys(alive).length !== Object.keys(subs).length) patch.push = alive;
+    if (Object.keys(patch).length) await db.patch('meta/settings', patch);
+    res.status(200).json({ ok: true, devices: Object.keys(alive).length, notified: due.length + (digest ? 1 : 0), sent });
+  } catch (err) {
+    if (!err.status) console.error(err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Errore interno.' });
+  }
+}

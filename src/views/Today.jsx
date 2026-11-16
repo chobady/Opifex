@@ -6,21 +6,22 @@ import { Capture } from '../components/Capture.jsx';
 import { Rings, RingsLegend, AreaRing } from '../components/Rings.jsx';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
-import { PRIORITIES, ringStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled } from '../lib/model.js';
+import { PRIORITIES, ringStats, stageStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled } from '../lib/model.js';
 import { cloudEnabled } from '../lib/firebase.js';
 
 export function Today() {
   const { items, areas, today, actions, ready, settings } = useApp();
   const stats = useMemo(() => ringStats(items, today), [items, today]);
+  const stages = useMemo(() => stageStats(items, today), [items, today]);
   const [celebrate, setCelebrate] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const prev = useRef(null);
 
-  // Quando un anello si chiude: festa.
+  // Quando tutti gli impegni di oggi arrivano al centro: festa.
   useEffect(() => {
-    if (!ready) return;
-    const full = Object.fromEntries(PRIORITIES.map((p) => [p.id, stats[p.id].total > 0 && stats[p.id].done >= stats[p.id].total]));
-    if (prev.current && PRIORITIES.some((p) => full[p.id] && !prev.current[p.id])) {
+    if (!ready) return undefined;
+    const full = stages.total > 0 && stages.done.length === stages.total;
+    if (prev.current === false && full) {
       setCelebrate(true);
       sfx.ring();
       const t = setTimeout(() => setCelebrate(false), 1600);
@@ -29,7 +30,7 @@ export function Today() {
     }
     prev.current = full;
     return undefined;
-  }, [stats, ready]);
+  }, [stages, ready]);
 
   // "Giorno perfetto": tutti gli anelli in programma sono chiusi. Si ricorda nelle impostazioni.
   useEffect(() => {
@@ -83,8 +84,8 @@ export function Today() {
           <Capture />
 
           <section className="rings-block">
-            <Rings stats={stats} celebrate={celebrate} />
-            <RingsLegend stats={stats} />
+            <Rings stats={stages} celebrate={celebrate} />
+            <RingsLegend stats={stages} />
           </section>
 
           <section className="areas-block">

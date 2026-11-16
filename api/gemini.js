@@ -14,7 +14,7 @@ function config() {
   return parseFirebaseConfig(COMMITTED_FIREBASE_CONFIG) || parseFirebaseConfig(process.env.VITE_FIREBASE_CONFIG);
 }
 
-async function verifyUser(req) {
+export async function verifyUser(req) {
   const cfg = config();
   if (!cfg) throw httpError(401, 'Firebase non è configurato: l’assistente funziona solo dopo il login.');
   const header = req.headers.authorization || '';
@@ -101,10 +101,27 @@ async function generateFull({ system, parts, history = [], json, search = false 
     const { generationConfig: _g, tools: _t, ...plain } = body;
     res = await run(model, plain);
   }
+  if (res.status === 429 && body.tools) {
+    // Spesso il limite e' solo quello della ricerca Google (piano gratuito): riprova senza ricerca.
+    const { tools: _t, ...plain } = body;
+    res = await run(model, json ? { ...plain, generationConfig: { responseMimeType: 'application/json' } } : plain);
+  }
+  if (res.status === 503 || res.status === 500) {
+    // Modello sovraccarico: un secondo tentativo dopo una breve pausa.
+    await new Promise((r) => setTimeout(r, 1200));
+    res = await run(model, body);
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    console.error('Gemini error', res.status, detail.slice(0, 500));
-    if (res.status === 429) throw httpError(429, 'Limite di richieste a Gemini raggiunto: riprova tra poco.');
+    console.error('Gemini error', res.status, model, detail.slice(0, 800));
+    let why = '';
+    try {
+      why = String(JSON.parse(detail)?.error?.message || '').split('\n')[0].slice(0, 220);
+    } catch {
+      /* niente */
+    }
+    if (res.status === 429)
+      throw httpError(429, `Gemini ha rifiutato la richiesta per un limite di quota (modello ${model}).${why ? ` Dettaglio: ${why}` : ''}`);
     if (res.status === 401 || res.status === 403) throw httpError(500, 'La chiave Gemini non è valida o non è abilitata.');
     throw httpError(502, 'Gemini non ha risposto correttamente. Riprova.');
   }

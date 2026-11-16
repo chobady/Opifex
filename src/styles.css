@@ -449,16 +449,37 @@ p {
   stroke: var(--track);
   stroke-width: 13;
 }
-.ring-prog {
+.ring-seg {
   fill: none;
-  stroke: var(--pc);
   stroke-width: 13;
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 5px var(--pc));
-  transition: stroke-dashoffset 1.1s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s;
+  stroke-linecap: butt;
 }
-.ring-prog.full {
-  animation: ringGlow 2.4s ease-in-out infinite;
+.ring-seg.empty {
+  stroke: var(--track);
+}
+.ring-seg.on {
+  stroke: var(--pc);
+  filter: drop-shadow(0 0 2.5px var(--pc));
+  animation: segIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stage-done .ring-seg.on {
+  filter: drop-shadow(0 0 5px var(--pc));
+}
+.stage-todo .ring-seg.on {
+  stroke-opacity: 0.82;
+}
+.rings.all-done .stage-done .ring-seg.on {
+  animation: segIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both, ringGlow 2.4s 1s ease-in-out infinite;
+}
+@keyframes segIn {
+  from {
+    stroke-dashoffset: var(--dash);
+    opacity: 0.2;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
 }
 .rings-center {
   position: absolute;
@@ -525,21 +546,76 @@ p {
   display: flex;
   flex-direction: column;
 }
-.legend-dot {
-  width: 12px;
-  height: 12px;
+.legend-ring {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.legend-ring i {
+  position: absolute;
   border-radius: 50%;
-  border: 3px solid var(--pc);
-  box-shadow: 0 0 8px var(--pc);
+  border: 2px solid var(--line2);
+}
+.legend-ring i:nth-child(1) {
+  inset: 0;
+}
+.legend-ring i:nth-child(2) {
+  inset: 4px;
+}
+.legend-ring i:nth-child(3) {
+  inset: 8px;
+}
+.legend-ring i.on {
+  border-color: var(--cyan);
+  box-shadow: 0 0 6px rgba(61, 214, 255, 0.6);
 }
 .legend-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--pc);
+  color: var(--text);
+}
+.legend-name em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  min-height: 10px;
+}
+.legend-pips i {
+  width: 12px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--pc);
+  box-shadow: 0 0 6px var(--pc);
 }
 .legend-count {
   font-size: 12px;
   color: var(--muted);
+}
+.legend-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-key i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc);
 }
 
 /* ---------- aree ---------- */
@@ -2623,6 +2699,12 @@ textarea.input {
   font-size: 12px;
   color: var(--soft);
   overflow-wrap: anywhere;
+}
+
+.row-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

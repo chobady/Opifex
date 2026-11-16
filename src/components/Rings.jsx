@@ -1,42 +1,54 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
-import { PRIORITIES } from '../lib/model.js';
+import { PRIORITIES, STAGES } from '../lib/model.js';
 
-const RADII = { critico: 88, importante: 66, normale: 44 };
+// Un anello diviso in tanti spicchi quanti sono gli impegni di oggi: gli spicchi accesi
+// (colorati per importanza) sono gli impegni che si trovano in quella fase.
+function StageRing({ stage, list, total, mounted }) {
+  const { r } = stage;
+  const c = 2 * Math.PI * r;
+  const slots = Math.max(total, 1);
+  const slot = c / slots;
+  const gap = total > 1 ? Math.min(7, slot * 0.34) : 0;
+  const dash = slot - gap;
+  return (
+    <g className={`stage stage-${stage.id}`}>
+      {total === 0 && <circle className="ring-track" cx="100" cy="100" r={r} />}
+      {Array.from({ length: total }, (_, i) => {
+        const it = list[i];
+        const rot = -90 + (i * 360) / slots + ((gap / 2) * 360) / c;
+        return (
+          <circle
+            key={it ? it.id : `e${i}`}
+            className={it ? `ring-seg on p-${it.priority || 'normale'}` : 'ring-seg empty'}
+            cx="100"
+            cy="100"
+            r={r}
+            strokeDasharray={`${dash} ${c}`}
+            transform={`rotate(${rot} 100 100)`}
+            style={it ? { '--dash': dash, animationDelay: mounted ? '0ms' : `${120 + i * 70}ms` } : undefined}
+          />
+        );
+      })}
+    </g>
+  );
+}
 
 export function Rings({ stats, celebrate }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 60);
+    const t = setTimeout(() => setMounted(true), 1200);
     return () => clearTimeout(t);
   }, []);
-  const done = PRIORITIES.reduce((n, p) => n + stats[p.id].done, 0);
-  const total = PRIORITIES.reduce((n, p) => n + stats[p.id].total, 0);
-  const label = PRIORITIES.map((p) => `${p.label} ${stats[p.id].done} di ${stats[p.id].total}`).join(', ');
+  const { total } = stats;
+  const done = stats.done.length;
+  const label = STAGES.map((s) => `${s.label} ${stats[s.id].length}`).join(', ');
   return (
-    <div className={`rings ${celebrate ? 'celebrate' : ''}`}>
-      <svg viewBox="0 0 200 200" role="img" aria-label={`Anelli di oggi: ${label}`}>
-        {PRIORITIES.map((p) => {
-          const r = RADII[p.id];
-          const c = 2 * Math.PI * r;
-          const s = stats[p.id];
-          const frac = s.total ? s.done / s.total : 0;
-          return (
-            <g key={p.id} className={`p-${p.id}`}>
-              <circle className="ring-track" cx="100" cy="100" r={r} />
-              <circle
-                className={`ring-prog ${frac >= 1 ? 'full' : ''}`}
-                cx="100"
-                cy="100"
-                r={r}
-                strokeDasharray={c}
-                strokeDashoffset={c * (1 - (mounted ? frac : 0))}
-                transform="rotate(-90 100 100)"
-                style={{ opacity: frac > 0 ? 1 : 0 }}
-              />
-            </g>
-          );
-        })}
+    <div className={`rings ${celebrate ? 'celebrate' : ''} ${total > 0 && done === total ? 'all-done' : ''}`}>
+      <svg viewBox="0 0 200 200" role="img" aria-label={`Impegni di oggi: ${label}, fatti ${done} di ${total}`}>
+        {STAGES.map((s) => (
+          <StageRing key={s.id} stage={s} list={stats[s.id]} total={total} mounted={mounted} />
+        ))}
       </svg>
       <div className="rings-center">
         {total > 0 ? (
@@ -44,7 +56,7 @@ export function Rings({ stats, celebrate }) {
             <span className="rings-num">
               {done}/{total}
             </span>
-            <span className="rings-sub">oggi</span>
+            <span className="rings-sub">fatti oggi</span>
           </>
         ) : (
           <>
@@ -67,17 +79,35 @@ export function Rings({ stats, celebrate }) {
 export function RingsLegend({ stats }) {
   return (
     <div className="legend">
-      {PRIORITIES.map((p) => (
-        <div key={p.id} className={`legend-row p-${p.id}`}>
-          <span className="legend-dot" />
+      {STAGES.map((s, i) => (
+        <div key={s.id} className={`legend-row stage-${s.id}`}>
+          <span className="legend-ring" aria-hidden="true">
+            {STAGES.map((x, k) => (
+              <i key={x.id} className={k === i ? 'on' : ''} />
+            ))}
+          </span>
           <div>
-            <span className="legend-name">{p.label}</span>
-            <span className="legend-count">
-              {stats[p.id].total ? `${stats[p.id].done} di ${stats[p.id].total}` : 'niente oggi'}
+            <span className="legend-name">
+              {s.id === 'doing' ? 'In corso / attesa' : s.label}
+            </span>
+            <span className="legend-pips">
+              {stats[s.id].length ? (
+                stats[s.id].map((it) => <i key={it.id} className={`p-${it.priority || 'normale'}`} title={it.title} />)
+              ) : (
+                <span className="legend-count">nessuno</span>
+              )}
             </span>
           </div>
         </div>
       ))}
+      <div className="legend-key" aria-label="Colori per importanza">
+        {PRIORITIES.map((p) => (
+          <span key={p.id} className={`p-${p.id}`}>
+            <i />
+            {p.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { subscribePush, currentPushId, testPush, pushSupported, isIOS, isStandalone } from '../lib/push.js';
 import { Icon, ICON_GROUPS, AREA_SUGGESTIONS } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
 import { sfx, soundEnabled, setSoundEnabled } from '../lib/sound.js';
 import { cloudEnabled, logout } from '../lib/firebase.js';
-import { Sheet, Field, Empty } from './ui.jsx';
+import { Sheet, Field, Empty, Chips } from './ui.jsx';
 import { ItemRow, ItemMeta } from './ItemRow.jsx';
 import { TYPES, isDone, matches, sortItems, uid, parsePrice, money, todayStr } from '../lib/model.js';
 
@@ -280,6 +281,95 @@ export function AreaEditor({ area, onClose }) {
   );
 }
 
+/* ---------- notifiche ---------- */
+const LEADS = [
+  { id: '60', label: '1 ora' },
+  { id: '120', label: '2 ore' },
+  { id: '180', label: '3 ore' },
+  { id: '1440', label: '1 giorno' },
+];
+
+function NotificationsBox() {
+  const { settings, actions } = useApp();
+  const [mine, setMine] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const devices = Object.keys(settings.push || {}).length;
+  const on = !!(mine && settings.push?.[mine]);
+  const lead = String(settings.notifyLead || 60);
+
+  useEffect(() => {
+    currentPushId().then(setMine).catch(() => {});
+  }, []);
+
+  async function enable() {
+    setBusy(true);
+    setMsg('');
+    try {
+      const { id, sub } = await subscribePush();
+      await actions.saveSettings({ push: { [id]: sub } });
+      setMine(id);
+      sfx.done();
+      setMsg('Attivate. Ora tocca “Prova” per controllare che arrivino.');
+    } catch (e) {
+      sfx.error();
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function test() {
+    setBusy(true);
+    setMsg('');
+    try {
+      const r = await testPush();
+      setMsg(r.sent ? `Inviata a ${r.sent} ${r.sent === 1 ? 'dispositivo' : 'dispositivi'}: dovrebbe arrivare tra pochi secondi.` : 'Nessun dispositivo l’ha ricevuta: riattiva le notifiche.');
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const needsHome = isIOS() && !isStandalone();
+  return (
+    <section className="shortcut-box">
+      <h3>
+        <Icon name="Bell" size={18} /> Notifiche
+      </h3>
+      {!cloudEnabled ? (
+        <p className="sheet-intro">Servono il login e il cloud.</p>
+      ) : needsHome ? (
+        <p className="sheet-intro">Su iPhone le notifiche funzionano solo aprendo Opifex dall’icona sulla schermata Home: in Safari tocca Condividi → “Aggiungi alla schermata Home”, poi apri Opifex da lì e torna qui.</p>
+      ) : !pushSupported() ? (
+        <p className="sheet-intro">Questo browser non supporta le notifiche.</p>
+      ) : (
+        <>
+          <p className="sheet-intro">
+            {on ? 'Attive su questo dispositivo.' : 'Non ancora attive su questo dispositivo.'}
+            {devices > 0 && ` Dispositivi iscritti: ${devices}.`} Gli impegni con data senza orario e quelli “prima possibile” te li ricordo alle 9 del mattino.
+          </p>
+          <div className="row-btns">
+            <button className="btn primary" disabled={busy} onClick={enable}>
+              <Icon name="BellRing" size={18} />
+              {on ? 'Riattiva' : 'Attiva notifiche'}
+            </button>
+            {devices > 0 && (
+              <button className="btn ghost" disabled={busy} onClick={test}>
+                <Icon name="Send" size={18} />
+                Prova
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      <span className="field-label sub">Avvisami prima di un impegno con orario</span>
+      <Chips options={LEADS} value={LEADS.some((l) => l.id === lead) ? lead : '60'} onChange={(v) => actions.saveSettings({ notifyLead: Number(v) })} label="Anticipo" />
+      {msg && <p className="field-hint">{msg}</p>}
+    </section>
+  );
+}
+
 /* ---------- impostazioni ---------- */
 export function SettingsSheet({ onClose }) {
   const { user, settings, actions } = useApp();
@@ -349,13 +439,7 @@ export function SettingsSheet({ onClose }) {
         </ol>
       </section>
 
-      <div className="setting static">
-        <Icon name="Bell" size={20} />
-        <span className="setting-text">
-          <strong>Notifiche su iPhone</strong>
-          <span>In arrivo. Intanto aggiungi Opifex alla schermata Home: in Safari tocca Condividi, poi “Aggiungi a Home”.</span>
-        </span>
-      </div>
+      <NotificationsBox />
 
       {cloudEnabled && (
         <button className="setting" onClick={() => logout()}>
@@ -366,7 +450,7 @@ export function SettingsSheet({ onClose }) {
           </span>
         </button>
       )}
-      <p className="version">Opifex 0.2.0</p>
+      <p className="version">Opifex 0.3.0</p>
     </Sheet>
   );
 }

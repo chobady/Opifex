@@ -337,6 +337,26 @@ export function ringStats(items, today = todayStr()) {
   return out;
 }
 
+// Anelli di Oggi per fasi della Bacheca: esterno = da fare, medio = in corso (anche in attesa), interno = fatto.
+export const STAGES = [
+  { id: 'todo', label: 'Da fare', r: 88 },
+  { id: 'doing', label: 'In corso', r: 66 },
+  { id: 'done', label: 'Fatto', r: 44 },
+];
+export function stageStats(items, today = todayStr()) {
+  const out = { todo: [], doing: [], done: [] };
+  for (const it of items) {
+    if (it.type !== 'impegno' || it.someday) continue;
+    if (doneOn(it, today)) out.done.push(it);
+    else if (isDone(it)) continue;
+    else if (it.status === 'doing' || it.status === 'waiting') out.doing.push(it);
+    else if (isDueToday(it, today)) out.todo.push(it);
+  }
+  for (const k of Object.keys(out)) out[k] = sortItems(out[k]);
+  const total = out.todo.length + out.doing.length + out.done.length;
+  return { ...out, total };
+}
+
 // Anello di un'area: fatti negli ultimi 7 giorni sul totale (fatti + ancora aperti).
 export function areaStats(items, areaId, today = todayStr()) {
   const from = addDays(today, -6);
