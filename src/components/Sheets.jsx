@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CAL_COLORS } from '../lib/calendars.js';
+import { pingAssistant } from '../lib/ai.js';
 import { subscribePush, currentPushId, testPush, pushSupported, isIOS, isStandalone } from '../lib/push.js';
 import { Icon, ICON_GROUPS, AREA_SUGGESTIONS } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
@@ -379,6 +380,34 @@ function NotificationsBox() {
   );
 }
 
+/* ---------- prova dell'assistente ---------- */
+function AssistantBox() {
+  const [state, setState] = useState(null);
+  async function test() {
+    setState({ busy: true });
+    try {
+      const r = await pingAssistant();
+      sfx.done();
+      setState({ ok: true, text: `Funziona. Modello in uso: ${r.model || 'Gemini'}.` });
+    } catch (e) {
+      sfx.error();
+      setState({ ok: false, text: e.message || 'Errore sconosciuto.' });
+    }
+  }
+  return (
+    <section className="shortcut-box">
+      <h3>
+        <Icon name="Sparkles" size={18} /> Assistente (Gemini)
+      </h3>
+      <button className="btn ghost" disabled={state?.busy} onClick={test}>
+        <Icon name={state?.busy ? 'LoaderCircle' : 'Zap'} size={18} className={state?.busy ? 'spin' : ''} />
+        Prova l’assistente
+      </button>
+      {state?.text && <p className={`field-hint ${state.ok ? '' : 'error-text'}`}>{state.text}</p>}
+    </section>
+  );
+}
+
 /* ---------- calendari Apple ---------- */
 function CalendarsBox() {
   const { settings, actions } = useApp();
@@ -600,6 +629,8 @@ export function SettingsSheet({ onClose }) {
       </section>
 
       <ThemeBox />
+
+      <AssistantBox />
 
       <CalendarsBox />
 

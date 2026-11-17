@@ -3483,6 +3483,10 @@ textarea.input {
   color: var(--text);
 }
 
+.error-text {
+  color: var(--magenta);
+}
+
 /* temi */
 .themes {
   display: flex;

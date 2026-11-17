@@ -138,3 +138,8 @@ export function blobToBase64(blob) {
     r.readAsDataURL(blob);
   });
 }
+
+// Prova veloce dalle impostazioni: risponde con il modello usato o con l'errore esatto.
+export async function pingAssistant() {
+  return call({ mode: 'ping' });
+}

@@ -8,14 +8,17 @@ const JWKS = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'),
 );
 const API = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_MODEL = 'gemini-3.6-flash';
+const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 
-function config() {
+// Le richieste con ricerca sul web possono durare un po'.
+export const config = { maxDuration: 60 };
+
+function firebaseCfg() {
   return parseFirebaseConfig(COMMITTED_FIREBASE_CONFIG) || parseFirebaseConfig(process.env.VITE_FIREBASE_CONFIG);
 }
 
 export async function verifyUser(req) {
-  const cfg = config();
+  const cfg = firebaseCfg();
   if (!cfg) throw httpError(401, 'Firebase non è configurato: l’assistente funziona solo dopo il login.');
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -87,43 +90,57 @@ async function generateFull({ system, parts, history = [], json, search = false 
       body: JSON.stringify(payload),
     });
 
-  let model = cachedModel || process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  let res = await run(model, body);
-  if (res.status === 404) {
-    const alt = await pickFallbackModel(key);
-    if (alt && alt !== model) {
-      model = alt;
-      res = await run(model, body);
+  // Un modello: con i ripieghi per le opzioni non supportate e per il limite della ricerca web.
+  async function attempt(model) {
+    let r = await run(model, body);
+    if (r.status === 400 && (body.generationConfig || body.tools)) {
+      const { generationConfig: _g, tools: _t, ...plain } = body;
+      r = await run(model, plain);
     }
+    if (r.status === 429 && body.tools) {
+      const { tools: _t, ...plain } = body;
+      r = await run(model, json ? { ...plain, generationConfig: { responseMimeType: 'application/json' } } : plain);
+    }
+    if (r.status === 503 || r.status === 500) {
+      await new Promise((ok) => setTimeout(ok, 1000));
+      r = await run(model, body);
+    }
+    return r;
   }
-  if (res.status === 400 && (body.generationConfig || body.tools)) {
-    // Alcuni modelli rifiutano opzioni che non conoscono: riprova senza.
-    const { generationConfig: _g, tools: _t, ...plain } = body;
-    res = await run(model, plain);
+
+  // Stessi modelli di Dimmispensa (stessa chiave): se uno non c'e' o e' senza quota, si passa al successivo.
+  const chain = [...new Set([process.env.GEMINI_MODEL, cachedModel, ...DEFAULT_MODELS].filter(Boolean))];
+  let res = null;
+  let model = chain[0];
+  const failures = [];
+  for (const m of chain) {
+    model = m;
+    res = await attempt(m);
+    if (res.ok) break;
+    failures.push(`${m}: ${res.status}`);
+    if (![404, 429, 500, 503].includes(res.status)) break;
   }
-  if (res.status === 429 && body.tools) {
-    // Spesso il limite e' solo quello della ricerca Google (piano gratuito): riprova senza ricerca.
-    const { tools: _t, ...plain } = body;
-    res = await run(model, json ? { ...plain, generationConfig: { responseMimeType: 'application/json' } } : plain);
-  }
-  if (res.status === 503 || res.status === 500) {
-    // Modello sovraccarico: un secondo tentativo dopo una breve pausa.
-    await new Promise((r) => setTimeout(r, 1200));
-    res = await run(model, body);
+  if (!res.ok && failures.every((f) => f.endsWith('404'))) {
+    const alt = await pickFallbackModel(key);
+    if (alt && !chain.includes(alt)) {
+      model = alt;
+      res = await attempt(alt);
+      if (!res.ok) failures.push(`${alt}: ${res.status}`);
+    }
   }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    console.error('Gemini error', res.status, model, detail.slice(0, 800));
+    console.error('Gemini error', failures.join(', '), detail.slice(0, 800));
     let why = '';
     try {
       why = String(JSON.parse(detail)?.error?.message || '').split('\n')[0].slice(0, 220);
     } catch {
       /* niente */
     }
-    if (res.status === 429)
-      throw httpError(429, `Gemini ha rifiutato la richiesta per un limite di quota (modello ${model}).${why ? ` Dettaglio: ${why}` : ''}`);
-    if (res.status === 401 || res.status === 403) throw httpError(500, 'La chiave Gemini non è valida o non è abilitata.');
-    throw httpError(502, 'Gemini non ha risposto correttamente. Riprova.');
+    const tried = ` (provati: ${failures.join(', ')})`;
+    if (res.status === 429) throw httpError(429, `Google ha risposto “quota esaurita” per tutti i modelli${tried}.${why ? ` Dettaglio: ${why}` : ''}`);
+    if (res.status === 401 || res.status === 403) throw httpError(500, `La chiave Gemini non è valida o non è abilitata${why ? `: ${why}` : '.'}`);
+    throw httpError(502, `Gemini non ha risposto correttamente${tried}.${why ? ` Dettaglio: ${why}` : ''}`);
   }
   cachedModel = model;
   const data = await res.json();
@@ -365,7 +382,12 @@ export default async function handler(req, res) {
   try {
     await verifyUser(req);
     const body = await readBody(req);
-    const modes = { chat: handleChat, solve: handleSolve, plan: handlePlan };
+    const modes = {
+      chat: handleChat,
+      solve: handleSolve,
+      plan: handlePlan,
+      ping: async () => ({ text: await generate({ system: 'Rispondi solo con: ok', parts: [{ text: 'ping' }] }), model: cachedModel }),
+    };
     const out = await (modes[body.mode] || handleCapture)(body);
     res.status(200).json(out);
   } catch (err) {
