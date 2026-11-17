@@ -11,6 +11,24 @@ const COLS = [
   { id: 'doing', label: 'In corso' },
   { id: 'done', label: 'Fatto' },
 ];
+// "Da fare" in ordine cronologico: scaduti e di oggi in alto, poi i prossimi giorni;
+// "prima possibile" conta come oggi, quelli senza data vanno in fondo. A parità di giorno: ora, poi importanza.
+const W = { critico: 3, importante: 2, normale: 1 };
+function byDate(list, today) {
+  const key = (it) => {
+    const w = it.when || {};
+    if (w.kind === 'date' && w.date) return `${w.date} ${w.time || '99:99'}`;
+    if (w.kind === 'asap') return `${today} 99:98`;
+    return '9999-99-99';
+  };
+  return [...list].sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return (W[b.priority] || 1) - (W[a.priority] || 1);
+  });
+}
+
 const colOf = (status) => (status === 'waiting' ? 'doing' : status);
 
 export function Board() {
@@ -23,6 +41,7 @@ export function Board() {
   const list = (status) => {
     const l = pool.filter((it) => it.status === status);
     if (status === 'done') return l.filter((it) => (it.doneAt || '') >= recent).sort((a, b) => ((a.doneAt || '') < (b.doneAt || '') ? 1 : -1));
+    if (status === 'todo') return byDate(l, today);
     return sortItems(l);
   };
 
