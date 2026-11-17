@@ -6,7 +6,8 @@ import { ItemRow } from '../components/ItemRow.jsx';
 import { AreaRing } from '../components/Rings.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
 import { SubHeader, Someday, Diary, Achievements, Stats, ArchiveView, MonthView, DeadlinesView } from './Extras.jsx';
-import { TYPES, isDone, sortItems, areaStats } from '../lib/model.js';
+import { TYPES, isDone, sortItems, areaStats, newItem } from '../lib/model.js';
+import { PeopleList } from '../components/People.jsx';
 
 const TILES = [
   { id: 'nota', text: 'Pensieri ancora da ordinare' },
@@ -25,6 +26,7 @@ const MORE = [
   { id: 'mese', icon: 'CalendarRange', label: 'Il tuo mese', text: 'Riepilogo di fine mese' },
   { id: 'archivio', icon: 'Archive', label: 'Archivio', text: 'Tutto ciò che hai fatto, da cercare' },
   { id: 'scadenze', icon: 'CalendarClock', label: 'Scadenze', text: 'Bollo, caldaia, bollette…' },
+  { id: 'persone', icon: 'Users', label: 'Persone', text: 'Chi aspetti, con chi hai cose in sospeso' },
   { id: 'revisione', icon: 'ClipboardCheck', label: 'Revisione', text: 'La settimana in cinque minuti' },
 ];
 
@@ -51,6 +53,13 @@ export function Spaces() {
   if (sub === 'diario') return <Diary onBack={() => setSub(null)} />;
   if (sub === 'traguardi') return <Achievements onBack={() => setSub(null)} />;
   if (sub === 'statistiche') return <Stats onBack={() => setSub(null)} />;
+  if (sub === 'persone')
+    return (
+      <div className="view spaces">
+        <SubHeader title="Persone" onBack={() => setSub(null)} onAdd={() => actions.edit(newItem({ type: 'persona' }))} />
+        <PeopleList />
+      </div>
+    );
   if (sub === 'mese') return <MonthView onBack={() => setSub(null)} />;
   if (sub === 'archivio') return <ArchiveView onBack={() => setSub(null)} />;
   if (sub === 'scadenze') return <DeadlinesView onBack={() => setSub(null)} />;

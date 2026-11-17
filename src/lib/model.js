@@ -8,6 +8,7 @@ export const TYPES = {
   oggetto: { label: 'Oggetto', plural: 'Oggetti', icon: 'ShoppingBag' },
   nota: { label: 'Nota', plural: 'Inbox', icon: 'Inbox' },
   diario: { label: 'Diario', plural: 'Diario', icon: 'NotebookPen' },
+  persona: { label: 'Persona', plural: 'Persone', icon: 'UserRound' },
 };
 // I tipi che si possono scegliere nell'editor (il diario ha la sua vista).
 export const TYPE_IDS = ['impegno', 'obiettivo', 'abitudine', 'problema', 'oggetto', 'nota'];
@@ -449,9 +450,23 @@ export const money = (n) => `${(Math.round(n * 100) / 100).toLocaleString('it-IT
 export function doneEvents(items) {
   const out = [];
   for (const it of items) {
-    if (it.type === 'diario') continue;
+    if (it.type === 'diario' || it.type === 'persona') continue;
     if (isDone(it) && it.doneAt && !(it.recur && it.when?.kind === 'date')) out.push({ day: it.doneAt, item: it });
     for (const d of it.doneLog || []) out.push({ day: d, item: it });
   }
   return out;
+}
+
+/* ---------- persone ---------- */
+export const phoneDigits = (p) => String(p || '').replace(/[^\d+]/g, '');
+// Cose che riguardano una persona: collegate a lei, oppure "in attesa di" col suo nome.
+export function personItems(person, items) {
+  const name = (person.title || '').trim().toLowerCase();
+  const first = name.split(/\s+/)[0];
+  return items.filter((it) => {
+    if (it.id === person.id || it.type === 'persona' || it.type === 'diario') return false;
+    if ((it.links || []).includes(person.id)) return true;
+    const w = (it.waitingFor || '').toLowerCase();
+    return !!w && !!first && (w.includes(name) || w.split(/[^\p{L}]+/u).includes(first));
+  });
 }

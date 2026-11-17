@@ -363,9 +363,68 @@ function NotificationsBox() {
           </div>
         </>
       )}
+      <span className="field-label sub">Riepilogo del mattino (notifica e in cima a Oggi)</span>
+      <Chips
+        options={[{ id: 'off', label: 'No' }, ...['06:30', '07:00', '07:30', '08:00', '08:30'].map((t) => ({ id: t, label: t }))]}
+        value={settings.morningOff ? 'off' : settings.morningAt || '07:00'}
+        onChange={(v) => actions.saveSettings(v === 'off' ? { morningOff: true } : { morningOff: false, morningAt: v })}
+        label="Riepilogo del mattino"
+      />
       <span className="field-label sub">Avvisami prima di un impegno con orario</span>
       <Chips options={LEADS} value={LEADS.some((l) => l.id === lead) ? lead : '60'} onChange={(v) => actions.saveSettings({ notifyLead: Number(v) })} label="Anticipo" />
       {msg && <p className="field-hint">{msg}</p>}
+    </section>
+  );
+}
+
+/* ---------- widget e contatti ---------- */
+function WidgetBox() {
+  const { actions } = useApp();
+  async function copyScript() {
+    try {
+      const code = (await (await fetch('/opifex-widget.js', { cache: 'no-store' })).text()).replace('__SITE__', window.location.origin);
+      await navigator.clipboard.writeText(code);
+      sfx.done();
+      actions.toast('Script copiato: incollalo in Scriptable.');
+    } catch {
+      sfx.error();
+      actions.toast('Non sono riuscito a copiarlo.');
+    }
+  }
+  return (
+    <section className="shortcut-box">
+      <h3>
+        <Icon name="LayoutGrid" size={18} /> Widget (iPhone e Mac)
+      </h3>
+      <ol className="solution-steps">
+        <li>Installa l’app gratuita Scriptable dall’App Store.</li>
+        <li>
+          Tocca qui sotto “Copia lo script”, poi in Scriptable tocca + , incolla e chiama lo script “Opifex”.
+        </li>
+        <li>Sulla Home tieni premuto → + → Scriptable → scegli la misura → aggiungi. Poi tieni premuto il widget → Modifica widget: Script = Opifex, Parametro = il tuo CAPTURE_TOKEN.</li>
+        <li>Sul Mac (macOS Sonoma o successivo, stesso account Apple): clic destro sulla scrivania → Modifica widget → cerca Scriptable tra i widget dell’iPhone.</li>
+      </ol>
+      <button className="btn primary" onClick={copyScript}>
+        <Icon name="Copy" size={18} />
+        Copia lo script
+      </button>
+    </section>
+  );
+}
+
+function ContactsBox() {
+  return (
+    <section className="shortcut-box">
+      <h3>
+        <Icon name="Users" size={18} /> Persone dai contatti
+      </h3>
+      <p className="sheet-intro">Un Comando rapido che ti fa scegliere un contatto della rubrica e lo aggiunge alle Persone di Opifex.</p>
+      <CopyLine label="Indirizzo da usare nel comando" value={`${window.location.origin}/api/person`} />
+      <ol className="solution-steps">
+        <li>Nuovo comando → azione “Seleziona contatto”.</li>
+        <li>“Ottieni contenuto di URL”: indirizzo qui sopra, metodo POST, corpo JSON con: name = Contatto › Nome, phone = Contatto › Numeri di telefono, email = Contatto › Indirizzi email, token = il tuo CAPTURE_TOKEN.</li>
+        <li>“Mostra notifica” con il risultato. Chiamalo “Persona in Opifex”.</li>
+      </ol>
     </section>
   );
 }
@@ -481,6 +540,10 @@ export function SettingsSheet({ onClose }) {
 
       <ThemeBox />
 
+      <WidgetBox />
+
+      <ContactsBox />
+
       <NotificationsBox />
 
       {cloudEnabled && (
@@ -492,7 +555,7 @@ export function SettingsSheet({ onClose }) {
           </span>
         </button>
       )}
-      <p className="version">Opifex 0.4.0</p>
+      <p className="version">Opifex 0.5.0</p>
     </Sheet>
   );
 }

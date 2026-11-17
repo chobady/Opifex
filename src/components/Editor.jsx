@@ -273,13 +273,21 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
         <Field label="Stato">
           <Chips options={STATUSES} value={d.status} onChange={(status) => set({ status })} label="Stato" />
           {d.status === 'waiting' && (
+            <>
             <input
               className="input"
               value={d.waitingFor || ''}
               onChange={(e) => set({ waitingFor: e.target.value })}
               placeholder="In attesa di chi o di cosa?"
               aria-label="In attesa di"
+              list="opifex-people"
             />
+            <datalist id="opifex-people">
+              {items.filter((it) => it.type === 'persona').map((p) => (
+                <option key={p.id} value={p.title} />
+              ))}
+            </datalist>
+            </>
           )}
         </Field>
       )}

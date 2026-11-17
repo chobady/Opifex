@@ -65,7 +65,7 @@ async function pickFallbackModel(key) {
   return pool.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0] || null;
 }
 
-async function generate(opts) {
+export async function generate(opts) {
   return (await generateFull(opts)).text;
 }
 

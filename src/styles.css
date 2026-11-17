@@ -3376,6 +3376,61 @@ textarea.input {
   border-color: var(--cyan-dim);
 }
 
+.morning {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 176, 32, 0.08), rgba(255, 61, 165, 0.05));
+  color: var(--soft);
+  font-size: 14px;
+  animation: rowIn 0.4s ease both;
+}
+.morning svg {
+  flex-shrink: 0;
+  color: var(--amber);
+}
+.morning p {
+  margin: 0;
+}
+
+.avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--violet);
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--violet-soft);
+  font-family: var(--display);
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(167, 139, 250, 0.25);
+}
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.person-row > svg {
+  color: var(--muted);
+}
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.contact-actions .btn {
+  text-decoration: none;
+}
+
 /* temi */
 .themes {
   display: flex;

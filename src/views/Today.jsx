@@ -130,6 +130,13 @@ export function Today() {
             </button>
           </div>
 
+          {settings.morning?.date === today && settings.morning.text && (
+            <div className="morning">
+              <Icon name="Sunrise" size={20} />
+              <p>{settings.morning.text}</p>
+            </div>
+          )}
+
           {reviewDue && (
             <button className="promo" onClick={() => actions.open('review')}>
               <Icon name="ClipboardCheck" size={22} />

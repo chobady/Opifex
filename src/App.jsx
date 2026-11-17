@@ -16,6 +16,7 @@ import { Editor } from './components/Editor.jsx';
 import { Proposals, SearchSheet, AreaSheet, AreaEditor, SettingsSheet, BoughtSheet } from './components/Sheets.jsx';
 import { Advisor } from './components/Advisor.jsx';
 import { Focus } from './components/Focus.jsx';
+import { PersonSheet } from './components/People.jsx';
 import { CatchUp, TimeSheet, WeeklyReview } from './components/Review.jsx';
 
 const NAV = [
@@ -138,6 +139,10 @@ function Shell({ user }) {
       },
       edit(item) {
         sfx.open();
+        if (item.type === 'persona') {
+          setSheet({ kind: 'person', person: item });
+          return;
+        }
         setEditor({ item, isNew: false });
       },
       create(partial = {}, opts = {}) {
@@ -386,6 +391,7 @@ function Shell({ user }) {
       {sheet?.kind === 'advisor' && itemById[sheet.itemId] && <Advisor item={itemById[sheet.itemId]} onClose={closeSheet} />}
       {sheetArea && <AreaSheet area={sheetArea} onClose={closeSheet} onEditArea={(a) => setSheet({ kind: 'areaEditor', area: a })} />}
       {sheet?.kind === 'areaEditor' && <AreaEditor area={sheet.area} onClose={closeSheet} />}
+      {sheet?.kind === 'person' && <PersonSheet key={sheet.person.id} person={itemById[sheet.person.id] || sheet.person} onClose={closeSheet} />}
       {sheet?.kind === 'catchup' && <CatchUp onClose={closeSheet} />}
       {sheet?.kind === 'time' && <TimeSheet onClose={closeSheet} />}
       {sheet?.kind === 'review' && <WeeklyReview onClose={closeSheet} />}
