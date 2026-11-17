@@ -17,6 +17,7 @@ import { Proposals, SearchSheet, AreaSheet, AreaEditor, SettingsSheet, BoughtShe
 import { Advisor } from './components/Advisor.jsx';
 import { Focus } from './components/Focus.jsx';
 import { PersonSheet } from './components/People.jsx';
+import { WaitingSheet } from './components/Waiting.jsx';
 import { CatchUp, TimeSheet, WeeklyReview } from './components/Review.jsx';
 
 const NAV = [
@@ -214,6 +215,11 @@ function Shell({ user }) {
         persist({ ...item, focusDate: today });
       },
       setStatus(item, status) {
+        if (status === 'waiting') {
+          sfx.open();
+          setSheet({ kind: 'waiting', itemId: item.id });
+          return;
+        }
         if (status === 'done') {
           sfx.done();
           persist(complete(item, today));
@@ -392,6 +398,7 @@ function Shell({ user }) {
       {sheetArea && <AreaSheet area={sheetArea} onClose={closeSheet} onEditArea={(a) => setSheet({ kind: 'areaEditor', area: a })} />}
       {sheet?.kind === 'areaEditor' && <AreaEditor area={sheet.area} onClose={closeSheet} />}
       {sheet?.kind === 'person' && <PersonSheet key={sheet.person.id} person={itemById[sheet.person.id] || sheet.person} onClose={closeSheet} />}
+      {sheet?.kind === 'waiting' && itemById[sheet.itemId] && <WaitingSheet item={itemById[sheet.itemId]} onClose={closeSheet} />}
       {sheet?.kind === 'catchup' && <CatchUp onClose={closeSheet} />}
       {sheet?.kind === 'time' && <TimeSheet onClose={closeSheet} />}
       {sheet?.kind === 'review' && <WeeklyReview onClose={closeSheet} />}

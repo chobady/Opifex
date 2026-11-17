@@ -4,6 +4,7 @@ import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
 import { Sheet, Chips, Field, Progress } from './ui.jsx';
 import { PhotoStrip } from './Photos.jsx';
+import { withWaiting } from './Waiting.jsx';
 import { TYPES, TYPE_IDS, PRIORITIES, STATUSES, RECURS, ADVANCES, DURATIONS, durationLabel, HABIT_MODES, DEFAULT_HABIT, isDoable, uid, matches, todayStr, addDays, goalProgress, toNumber } from '../lib/model.js';
 
 const WHEN = [
@@ -42,6 +43,7 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
       actions.toast('Scrivi almeno un titolo.');
       return;
     }
+    if (needsWho()) return;
     const when = { ...d.when };
     if (when.kind !== 'date') {
       when.date = null;
@@ -54,6 +56,7 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
 
   function finalize(title, when) {
     let out = { ...d, title, when, recur: when.kind === 'date' ? d.recur : '' };
+    if (out.status === 'waiting' && (out.waitingFor || '').trim()) out = withWaiting(out, out.waitingFor, items);
     if (d.type === 'abitudine') out = { ...out, when: { kind: 'none', date: null, time: null }, recur: '', habit };
     else out = { ...out, habit: d.habit };
     if (d.type === 'obiettivo' && d.measure) {
@@ -63,6 +66,16 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
     return out;
   }
 
+  function needsWho() {
+    if (d.status === 'waiting' && isDoable(d) && d.type !== 'abitudine' && !(d.waitingFor || '').trim()) {
+      sfx.error();
+      actions.toast('Scrivi in attesa di chi.');
+      document.getElementById('opifex-waiting')?.focus();
+      return true;
+    }
+    return false;
+  }
+
   function act(kind) {
     const title = d.title.trim();
     if (!title) {
@@ -70,6 +83,7 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
       actions.toast('Scrivi almeno un titolo.');
       return;
     }
+    if (needsWho()) return;
     const when = { ...d.when };
     if (when.kind !== 'date') {
       when.date = null;
@@ -274,13 +288,17 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
           <Chips options={STATUSES} value={d.status} onChange={(status) => set({ status })} label="Stato" />
           {d.status === 'waiting' && (
             <>
+            <span className="field-label sub">In attesa di chi? (obbligatorio)</span>
             <input
-              className="input"
+              id="opifex-waiting"
+              className={`input ${(d.waitingFor || '').trim() ? '' : 'needs'}`}
               value={d.waitingFor || ''}
               onChange={(e) => set({ waitingFor: e.target.value })}
-              placeholder="In attesa di chi o di cosa?"
-              aria-label="In attesa di"
+              placeholder="es. Marco, il commercialista…"
+              aria-label="In attesa di chi"
+              aria-required="true"
               list="opifex-people"
+              autoFocus={!item.waitingFor}
             />
             <datalist id="opifex-people">
               {items.filter((it) => it.type === 'persona').map((p) => (

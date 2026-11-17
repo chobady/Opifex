@@ -3456,6 +3456,33 @@ textarea.input {
   box-shadow: 0 0 8px var(--cc);
 }
 
+.input.needs {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.12);
+}
+.people-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.person-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 4px 12px 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  font-size: 13px;
+  color: var(--soft);
+}
+.person-chip.on,
+.person-chip:hover {
+  border-color: var(--violet);
+  color: var(--text);
+}
+
 /* temi */
 .themes {
   display: flex;
