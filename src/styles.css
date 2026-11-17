@@ -1028,7 +1028,8 @@ p {
 .today-grid .capture {
   order: 1;
 }
-.today-grid .rings-block {
+.today-grid .rings-block,
+.today-grid .asap-block {
   order: 2;
 }
 .today-main > * {

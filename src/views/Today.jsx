@@ -96,6 +96,17 @@ export function Today() {
             <RingsLegend stats={stages} />
           </section>
 
+          {asap.length > 0 && (
+            <section className="asap-block">
+              <SectionTitle>Prima possibile</SectionTitle>
+              <div className="list">
+                {asap.map((it) => (
+                  <ItemRow key={it.id} item={it} star />
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="areas-block">
             <SectionTitle>Aree</SectionTitle>
             <div className="areas-row">
@@ -204,17 +215,6 @@ export function Today() {
               <SectionTitle>Oggi</SectionTitle>
               <div className="list">
                 {now.map((it) => (
-                  <ItemRow key={it.id} item={it} star />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {asap.length > 0 && (
-            <section>
-              <SectionTitle>Prima possibile</SectionTitle>
-              <div className="list">
-                {asap.map((it) => (
                   <ItemRow key={it.id} item={it} star />
                 ))}
               </div>

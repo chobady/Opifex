@@ -406,7 +406,8 @@ export const STAGES = [
 export function stageStats(items, today = todayStr()) {
   const out = { todo: [], doing: [], done: [] };
   for (const it of items) {
-    if (it.type !== 'impegno' || it.someday) continue;
+    // I "prima possibile" non fanno parte degli anelli: hanno il loro riquadro sotto.
+    if (it.type !== 'impegno' || it.someday || it.when?.kind === 'asap') continue;
     if (doneOn(it, today)) out.done.push(it);
     else if (isDone(it)) continue;
     // Un impegno destinato a un giorno futuro conta solo da quel giorno (se resta indietro, continua a contare).
