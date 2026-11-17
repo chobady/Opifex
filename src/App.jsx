@@ -15,6 +15,8 @@ import { Login, Logo } from './views/Login.jsx';
 import { Editor } from './components/Editor.jsx';
 import { Proposals, SearchSheet, AreaSheet, AreaEditor, SettingsSheet, BoughtSheet } from './components/Sheets.jsx';
 import { Advisor } from './components/Advisor.jsx';
+import { Focus } from './components/Focus.jsx';
+import { CatchUp, TimeSheet, WeeklyReview } from './components/Review.jsx';
 
 const NAV = [
   { id: 'oggi', label: 'Oggi', icon: 'CircleDot' },
@@ -60,6 +62,7 @@ function Shell({ user }) {
   const [proposals, setProposals] = useState(null);
   const [sheet, setSheet] = useState(null);
   const [toast, setToast] = useState(null);
+  const [focus, setFocus] = useState(null);
   const [chat, setChat] = useState([]);
   const today = useToday();
   const toastTimer = useRef(null);
@@ -70,6 +73,12 @@ function Shell({ user }) {
   const announced = useRef(new Set());
   const itemById = useMemo(() => Object.fromEntries(items.map((it) => [it.id, it])), [items]);
   const areaById = useMemo(() => Object.fromEntries(areas.map((a) => [a.id, a])), [areas]);
+
+  // Tema colori.
+  const theme = data.settings.theme || 'neon';
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const showToast = useCallback((text) => {
     clearTimeout(toastTimer.current);
@@ -237,6 +246,14 @@ function Shell({ user }) {
         sfx.open();
         setSheet({ kind: 'search' });
       },
+      open(kind) {
+        sfx.open();
+        setSheet({ kind });
+      },
+      focus(item) {
+        sfx.open();
+        setFocus({ itemId: item.id });
+      },
     };
   }, [areas, items, itemById, today, persist, showToast, user.uid]);
 
@@ -278,6 +295,10 @@ function Shell({ user }) {
       setEditor(null);
       sfx.open();
       setSheet({ kind: 'advisor', itemId: out.id });
+    } else if (kind === 'focus') {
+      setEditor(null);
+      sfx.open();
+      setFocus({ itemId: out.id });
     } else if (kind === 'newLinked') {
       sfx.open();
       setEditor({ item: newItem({ links: [out.id], area: out.area }), isNew: true, banner: `Collegato a: ${out.title}` });
@@ -365,6 +386,9 @@ function Shell({ user }) {
       {sheet?.kind === 'advisor' && itemById[sheet.itemId] && <Advisor item={itemById[sheet.itemId]} onClose={closeSheet} />}
       {sheetArea && <AreaSheet area={sheetArea} onClose={closeSheet} onEditArea={(a) => setSheet({ kind: 'areaEditor', area: a })} />}
       {sheet?.kind === 'areaEditor' && <AreaEditor area={sheet.area} onClose={closeSheet} />}
+      {sheet?.kind === 'catchup' && <CatchUp onClose={closeSheet} />}
+      {sheet?.kind === 'time' && <TimeSheet onClose={closeSheet} />}
+      {sheet?.kind === 'review' && <WeeklyReview onClose={closeSheet} />}
       {proposals && (
         <Proposals
           drafts={proposals}
@@ -392,6 +416,7 @@ function Shell({ user }) {
           onClose={closeEditor}
         />
       )}
+      {focus && itemById[focus.itemId] && <Focus item={itemById[focus.itemId]} onClose={() => (sfx.close(), setFocus(null))} />}
       {toast && (
         <div key={toast.id} className="toast" role="status">
           {toast.text}

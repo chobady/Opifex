@@ -4,12 +4,13 @@ import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
 import { Sheet } from './ui.jsx';
 import { solveProblem, planSolution } from '../lib/ai.js';
+import { loadPhoto } from './Photos.jsx';
 
 const EFFORT = { bassa: 'Poca fatica', media: 'Fatica media', alta: 'Molta fatica' };
 
 // "Chiedi un'opinione": soluzioni per un problema, poi il piano che diventa impegni.
 export function Advisor({ item, onClose }) {
-  const { items, areas, actions } = useApp();
+  const { items, areas, actions, user } = useApp();
   const [extra, setExtra] = useState(item.advice?.extra || '');
   const [phase, setPhase] = useState('idle'); // idle | solving | planning
   const [error, setError] = useState('');
@@ -21,7 +22,8 @@ export function Advisor({ item, onClose }) {
     setPhase('solving');
     sfx.send();
     try {
-      const out = await solveProblem({ item, areas, items, extra });
+      const images = (await Promise.all((item.photos || []).slice(0, 3).map((id) => loadPhoto(user.uid, id).catch(() => null)))).filter(Boolean);
+      const out = await solveProblem({ item, areas, items, extra, images });
       actions.save({
         ...item,
         advice: { at: Date.now(), extra, summary: out.summary, solutions: out.solutions, sources: out.sources || [], chosen: null },

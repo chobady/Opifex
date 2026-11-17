@@ -3,7 +3,8 @@ import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
 import { Sheet, Chips, Field, Progress } from './ui.jsx';
-import { TYPES, TYPE_IDS, PRIORITIES, STATUSES, RECURS, HABIT_MODES, DEFAULT_HABIT, isDoable, uid, matches, todayStr, addDays, goalProgress, toNumber } from '../lib/model.js';
+import { PhotoStrip } from './Photos.jsx';
+import { TYPES, TYPE_IDS, PRIORITIES, STATUSES, RECURS, ADVANCES, DURATIONS, durationLabel, HABIT_MODES, DEFAULT_HABIT, isDoable, uid, matches, todayStr, addDays, goalProgress, toNumber } from '../lib/model.js';
 
 const WHEN = [
   { id: 'none', label: 'Nessuna data' },
@@ -250,9 +251,22 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
             </div>
             <span className="field-label sub">Si ripete</span>
             <Chips options={RECURS} value={d.recur || ''} onChange={(recur) => set({ recur })} label="Ripetizione" />
+            <span className="field-label sub">Avvisami prima (scadenze)</span>
+            <Chips options={ADVANCES} value={String(d.advanceDays || 0)} onChange={(v) => set({ advanceDays: Number(v) })} label="Anticipo" />
           </>
         )}
       </Field>
+      )}
+
+      {(d.type === 'impegno' || isHabit) && (
+        <Field label={isHabit ? 'Quanto dura' : 'Quanto ci vuole'} hint={d.slips >= 3 ? `Rimandato ${d.slips} volte: forse va spezzato in passi più piccoli.` : null}>
+          <Chips
+            options={[{ id: '', label: 'Non so' }, ...DURATIONS.map((m) => ({ id: String(m), label: durationLabel(m) }))]}
+            value={DURATIONS.includes(d.minutes) ? String(d.minutes) : d.minutes ? 'x' : ''}
+            onChange={(v) => set({ minutes: v ? Number(v) : null })}
+            label="Durata"
+          />
+        </Field>
       )}
 
       {doable && !isHabit && (
@@ -290,12 +304,23 @@ export function Editor({ item, isNew, banner, onSave, onAction, onDelete, onClos
         </button>
       )}
 
+      {!isNew && (d.type === 'impegno' || (isHabit && (d.checklist || []).length > 0)) && d.status !== 'done' && (
+        <button type="button" className="btn ghost wide" onClick={() => act('focus')}>
+          <Icon name={isHabit ? 'Play' : 'Timer'} size={18} />
+          {isHabit ? 'Avvia la routine' : 'Concentrati su questo'}
+        </button>
+      )}
+
+      <Field label="Foto" hint={d.type === 'problema' ? 'L’assistente guarda anche le foto quando gli chiedi un’opinione.' : null}>
+        <PhotoStrip ids={d.photos || []} onChange={(photos) => set({ photos })} />
+      </Field>
+
       <label className="field">
         <span className="field-label">Note</span>
         <textarea className="input" rows={3} value={d.notes || ''} onChange={(e) => set({ notes: e.target.value })} placeholder="Dettagli, idee, cosa hai già provato…" />
       </label>
 
-      <Field label="Passi">
+      <Field label={isHabit ? 'Passi della routine' : 'Passi'} hint={isHabit && !(d.checklist || []).length ? 'Aggiungi dei passi e diventa una routine da seguire in ordine.' : null}>
         {(d.checklist || []).map((c) => (
           <div key={c.id} className={`step ${c.done ? 'done' : ''}`}>
             <button

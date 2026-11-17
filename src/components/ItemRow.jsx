@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
 import { Bars, Progress } from './ui.jsx';
-import { TYPES, PRIORITY, isDone, isDoable, isOverdue, doneOn, whenLabel, relativeDate, goalProgress, habitStreak, habitOf, weekCount, addDays, money, parsePrice } from '../lib/model.js';
+import { TYPES, PRIORITY, isDone, isDoable, isOverdue, doneOn, whenLabel, relativeDate, goalProgress, habitStreak, habitOf, weekCount, addDays, money, parsePrice, durationLabel } from '../lib/model.js';
 
 export function ItemMeta({ item, showType = false, showArea = true }) {
   const { areaById, today, itemById } = useApp();
@@ -70,6 +70,18 @@ export function ItemMeta({ item, showType = false, showArea = true }) {
         <span className="meta-bit meta-goal">
           <Icon name={progress.mode === 'measure' ? 'Gauge' : 'ListTodo'} size={13} strokeWidth={1.8} />
           {progress.label}
+        </span>
+      )}
+      {item.minutes > 0 && (
+        <span className="meta-bit">
+          <Icon name="Timer" size={13} strokeWidth={1.8} />
+          {durationLabel(item.minutes)}
+        </span>
+      )}
+      {(item.photos || []).length > 0 && (
+        <span className="meta-bit">
+          <Icon name="Camera" size={13} strokeWidth={1.8} />
+          {item.photos.length}
         </span>
       )}
       {item.someday && (
@@ -141,6 +153,11 @@ export function ItemRow({ item, star = false, showType = false, showArea = true,
           onClick={() => actions.toggleFocus(item)}
         >
           <Icon name="Star" size={18} />
+        </button>
+      )}
+      {item.type === 'abitudine' && (item.checklist || []).length > 0 && !done && (
+        <button className="star play" aria-label={`Avvia la routine: ${item.title}`} onClick={() => actions.focus(item)}>
+          <Icon name="Play" size={18} />
         </button>
       )}
       <span className="prio-tag">{PRIORITY[item.priority]?.label}</span>

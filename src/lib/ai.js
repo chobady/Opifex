@@ -71,11 +71,12 @@ const problemPayload = (item, areas) => ({
 });
 
 // Soluzioni per un problema (con ricerca sul web lato server).
-export async function solveProblem({ item, areas, items, extra }) {
+export async function solveProblem({ item, areas, items, extra, images = [] }) {
   const today = todayStr();
   const others = items.filter((it) => it.id !== item.id && (it.type === 'impegno' || it.type === 'abitudine') && !it.someday);
   return call({
     mode: 'solve',
+    images: images.slice(0, 3).map((data) => ({ mime: 'image/jpeg', data })),
     problem: problemPayload(item, areas),
     extra: extra || '',
     today,

@@ -5,7 +5,7 @@ import { sfx } from '../lib/sound.js';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { AreaRing } from '../components/Rings.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
-import { SubHeader, Someday, Diary, Achievements, Stats } from './Extras.jsx';
+import { SubHeader, Someday, Diary, Achievements, Stats, ArchiveView, MonthView, DeadlinesView } from './Extras.jsx';
 import { TYPES, isDone, sortItems, areaStats } from '../lib/model.js';
 
 const TILES = [
@@ -22,6 +22,10 @@ const MORE = [
   { id: 'diario', icon: 'NotebookPen', label: 'Diario', text: 'Com’è andata, giorno per giorno' },
   { id: 'traguardi', icon: 'Medal', label: 'Traguardi', text: 'Le medaglie che hai sbloccato' },
   { id: 'statistiche', icon: 'ChartNoAxesColumn', label: 'Statistiche', text: 'Cosa stai davvero facendo' },
+  { id: 'mese', icon: 'CalendarRange', label: 'Il tuo mese', text: 'Riepilogo di fine mese' },
+  { id: 'archivio', icon: 'Archive', label: 'Archivio', text: 'Tutto ciò che hai fatto, da cercare' },
+  { id: 'scadenze', icon: 'CalendarClock', label: 'Scadenze', text: 'Bollo, caldaia, bollette…' },
+  { id: 'revisione', icon: 'ClipboardCheck', label: 'Revisione', text: 'La settimana in cinque minuti' },
 ];
 
 const EMPTY_TEXT = {
@@ -47,6 +51,9 @@ export function Spaces() {
   if (sub === 'diario') return <Diary onBack={() => setSub(null)} />;
   if (sub === 'traguardi') return <Achievements onBack={() => setSub(null)} />;
   if (sub === 'statistiche') return <Stats onBack={() => setSub(null)} />;
+  if (sub === 'mese') return <MonthView onBack={() => setSub(null)} />;
+  if (sub === 'archivio') return <ArchiveView onBack={() => setSub(null)} />;
+  if (sub === 'scadenze') return <DeadlinesView onBack={() => setSub(null)} />;
 
   if (sub === 'aree') {
     const sorted = [...areas].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -194,7 +201,7 @@ export function Spaces() {
       <SectionTitle>Per capire e ricordare</SectionTitle>
       <div className="tiles tiles-more">
         {MORE.map((m) => (
-          <button key={m.id} className="tile" onClick={() => setSub(m.id)}>
+          <button key={m.id} className="tile" onClick={() => (m.id === 'revisione' ? actions.open('review') : setSub(m.id))}>
             <span className="tile-icon">
               <Icon name={m.icon} size={22} />
             </span>

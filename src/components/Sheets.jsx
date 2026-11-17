@@ -370,6 +370,46 @@ function NotificationsBox() {
   );
 }
 
+/* ---------- temi ---------- */
+const THEMES = [
+  { id: 'neon', label: 'Neon', c: '#3dd6ff' },
+  { id: 'terminale', label: 'Terminale', c: '#39ff88' },
+  { id: 'glaciale', label: 'Glaciale', c: '#8ab4ff' },
+  { id: 'aurora', label: 'Aurora', c: '#2ff5d8' },
+  { id: 'solare', label: 'Solare', c: '#ffd84d' },
+];
+function ThemeBox() {
+  const { settings, actions } = useApp();
+  const cur = settings.theme || 'neon';
+  return (
+    <section className="shortcut-box">
+      <h3>
+        <Icon name="Palette" size={18} /> Tema
+      </h3>
+      <div className="themes" role="radiogroup" aria-label="Tema">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            role="radio"
+            aria-checked={cur === t.id}
+            className={`theme-swatch ${cur === t.id ? 'on' : ''}`}
+            style={{ '--sw': t.c }}
+            onClick={() => {
+              sfx.tap();
+              document.documentElement.dataset.theme = t.id;
+              actions.saveSettings({ theme: t.id });
+            }}
+          >
+            <i />
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <p className="field-hint">Cambia il colore guida (e quello degli impegni normali). Critico e importante restano magenta e ambra.</p>
+    </section>
+  );
+}
+
 /* ---------- impostazioni ---------- */
 export function SettingsSheet({ onClose }) {
   const { user, settings, actions } = useApp();
@@ -439,6 +479,8 @@ export function SettingsSheet({ onClose }) {
         </ol>
       </section>
 
+      <ThemeBox />
+
       <NotificationsBox />
 
       {cloudEnabled && (
@@ -450,7 +492,7 @@ export function SettingsSheet({ onClose }) {
           </span>
         </button>
       )}
-      <p className="version">Opifex 0.3.0</p>
+      <p className="version">Opifex 0.4.0</p>
     </Sheet>
   );
 }

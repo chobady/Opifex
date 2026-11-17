@@ -33,7 +33,21 @@ export const RECURS = [
   { id: 'weekdays', label: 'Lun–Ven' },
   { id: 'weekly', label: 'Ogni settimana' },
   { id: 'monthly', label: 'Ogni mese' },
+  { id: 'yearly', label: 'Ogni anno' },
 ];
+
+// Quanto prima avvisare di una scadenza (giorni).
+export const ADVANCES = [
+  { id: '0', label: 'Il giorno stesso' },
+  { id: '3', label: '3 giorni prima' },
+  { id: '7', label: '1 settimana' },
+  { id: '14', label: '2 settimane' },
+  { id: '30', label: '1 mese' },
+];
+
+// Durate rapide in minuti.
+export const DURATIONS = [5, 15, 30, 60, 120];
+export const durationLabel = (m) => (!m ? '' : m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`);
 
 // I tipi che "si fanno" e quindi contano negli anelli e in bacheca.
 export const DOABLE = ['impegno', 'abitudine'];
@@ -113,6 +127,10 @@ export function newItem(partial = {}) {
     mood: null,
     day: null,
     focusDate: null,
+    minutes: null,
+    advanceDays: 0,
+    slips: 0,
+    photos: [],
     doneAt: null,
     doneLog: [],
     createdAt: Date.now(),
@@ -254,6 +272,13 @@ export function nextOccurrence(dateStr, recur) {
     n.setDate(Math.min(day, last));
     return toStr(n);
   }
+  if (recur === 'yearly') {
+    const d = fromStr(dateStr);
+    const n = new Date(d.getFullYear() + 1, d.getMonth(), 1);
+    const last = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+    n.setDate(Math.min(d.getDate(), last));
+    return toStr(n);
+  }
   return dateStr;
 }
 
@@ -266,7 +291,40 @@ export function occursOn(it, day) {
   if (it.recur === 'weekdays') return ![0, 6].includes(fromStr(day).getDay());
   if (it.recur === 'weekly') return diffDays(day, base) % 7 === 0;
   if (it.recur === 'monthly') return fromStr(day).getDate() === fromStr(base).getDate();
+  if (it.recur === 'yearly') return day.slice(5) === base.slice(5);
   return false;
+}
+
+// Scadenze che si avvicinano: data futura entro l'anticipo scelto.
+export function upcoming(items, today = todayStr()) {
+  return items
+    .filter((it) => !isDone(it) && !it.someday && it.advanceDays > 0 && it.when?.kind === 'date' && it.when.date > today)
+    .filter((it) => diffDays(it.when.date, today) <= it.advanceDays)
+    .sort((a, b) => (a.when.date < b.when.date ? -1 : 1));
+}
+
+// Impegni rimasti indietro (scaduti, non ricorrenti giornalieri).
+export const behind = (items, today = todayStr()) => items.filter((it) => it.type === 'impegno' && !it.someday && isOverdue(it, today));
+
+// Sposta a una nuova data contando il rinvio.
+export function postpone(it, date) {
+  return { ...it, when: { ...it.when, kind: 'date', date }, slips: (it.slips || 0) + 1, updatedAt: Date.now() };
+}
+
+// Cosa fare se ho N minuti: impegni aperti per oggi o senza data, che ci stanno nel tempo.
+export function fitsIn(items, minutes, today = todayStr()) {
+  const open = items.filter(
+    (it) =>
+      it.type === 'impegno' &&
+      !isDone(it) &&
+      !it.someday &&
+      it.status !== 'waiting' &&
+      (it.when?.kind !== 'date' || !it.when.date || it.when.date <= today),
+  );
+  return {
+    fit: sortItems(open.filter((it) => it.minutes && it.minutes <= minutes)),
+    unknown: sortItems(open.filter((it) => !it.minutes)),
+  };
 }
 
 // Restituisce l'elemento aggiornato dopo "fatto". I ricorrenti passano alla data successiva.
@@ -280,6 +338,7 @@ export function complete(it, today = todayStr()) {
       ...it,
       when: { ...it.when, date: next },
       doneLog,
+      slips: 0,
       status: 'todo',
       checklist: (it.checklist || []).map((c) => ({ ...c, done: false })),
       updatedAt: now,

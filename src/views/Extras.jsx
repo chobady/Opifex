@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
@@ -7,7 +7,7 @@ import { Empty, SectionTitle, Progress } from '../components/ui.jsx';
 import { BADGES } from '../lib/badges.js';
 import {
   TYPES, newItem, longDate, shortDate, addDays, startOfWeek, weekdayLong, fromStr, doneEvents, habitStreak, habitRate, goalProgress,
-  isDone, isOverdue, parsePrice, money, diffDays, PRIORITIES,
+  isDone, isOverdue, parsePrice, money, diffDays, PRIORITIES, monthLabel,
 } from '../lib/model.js';
 
 export function SubHeader({ title, kicker = 'Spazi', onBack, onAdd, addLabel = 'Nuovo' }) {
@@ -454,6 +454,239 @@ export function Stats({ onBack }) {
           {!data.oldest && !data.bought && data.mood == null && <li>Più usi Opifex, più cose compaiono qui.</li>}
         </ul>
       </section>
+    </div>
+  );
+}
+
+/* ---------- archivio ---------- */
+export function ArchiveView({ onBack }) {
+  const { items, areaById, today, actions } = useApp();
+  const [q, setQ] = useState('');
+  const [habits, setHabits] = useState(false);
+  const events = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return doneEvents(items)
+      .filter((e) => habits || e.item.type !== 'abitudine')
+      .filter((e) => !t || `${e.item.title} ${e.item.notes || ''}`.toLowerCase().includes(t))
+      .sort((a, b) => (a.day < b.day ? 1 : -1));
+  }, [items, q, habits]);
+  const last = q.trim() && events[0];
+  let month = '';
+  return (
+    <div className="view spaces">
+      <SubHeader title="Archivio" onBack={onBack} />
+      <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca tra le cose fatte… (es. caldaia)" aria-label="Cerca nell'archivio" />
+      <label className="toggle-line">
+        <input type="checkbox" checked={habits} onChange={(e) => setHabits(e.target.checked)} />
+        Mostra anche le abitudini
+      </label>
+      {last && (
+        <div className="advice-summary">
+          <Icon name="History" size={20} />
+          <p>
+            L’ultima volta: <strong>{last.item.title}</strong>, {longDate(last.day).toLowerCase()} ({diffDays(today, last.day) === 0 ? 'oggi' : `${diffDays(today, last.day)} giorni fa`}).
+          </p>
+        </div>
+      )}
+      <div className="archive">
+        {events.slice(0, 400).map((e, i) => {
+          const m = e.day.slice(0, 7);
+          const head = m !== month;
+          month = m;
+          const area = areaById[e.item.area];
+          return (
+            <div key={`${e.item.id}-${e.day}-${i}`}>
+              {head && <h3 className="archive-month">{monthLabel(`${m}-01`)}</h3>}
+              <button className={`archive-row p-${e.item.priority}`} onClick={() => actions.edit(e.item)}>
+                <span className="archive-day">{shortDate(e.day)}</span>
+                <Icon name={TYPES[e.item.type]?.icon || 'Circle'} size={15} />
+                <span className="archive-title">{e.item.title}</span>
+                {area && (
+                  <span className="archive-area">
+                    <Icon name={area.icon} size={13} />
+                  </span>
+                )}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {!events.length && <Empty icon="Archive" title={q ? 'Niente trovato' : 'Archivio vuoto'} text={q ? 'Prova con un’altra parola.' : 'Qui finisce tutto quello che completi.'} />}
+    </div>
+  );
+}
+
+/* ---------- riepilogo del mese ---------- */
+export function MonthView({ onBack }) {
+  const { items, settings, today, actions, areas } = useApp();
+  const [month, setMonth] = useState(() => (Number(today.slice(8)) <= 5 ? addDays(`${today.slice(0, 8)}01`, -1).slice(0, 7) : today.slice(0, 7)));
+  useEffect(() => {
+    const last = addDays(`${today.slice(0, 8)}01`, -1).slice(0, 7);
+    if (month === last && settings.monthSeen !== last) actions.saveSettings({ monthSeen: last });
+  }, [month, today, settings.monthSeen, actions]);
+  const shift = (n) => {
+    sfx.tap();
+    const [y, m] = month.split('-').map(Number);
+    const d = new Date(y, m - 1 + n, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+  const r = useMemo(() => {
+    const inM = (d) => (d || '').startsWith(month);
+    const ev = doneEvents(items).filter((e) => inM(e.day));
+    const tasks = ev.filter((e) => e.item.type !== 'abitudine');
+    const checks = ev.filter((e) => e.item.type === 'abitudine');
+    const byHabit = {};
+    checks.forEach((e) => (byHabit[e.item.id] = { it: e.item, n: (byHabit[e.item.id]?.n || 0) + 1 }));
+    const topHabits = Object.values(byHabit).sort((a, b) => b.n - a.n).slice(0, 3);
+    const byDay = {};
+    ev.forEach((e) => (byDay[e.day] = (byDay[e.day] || 0) + 1));
+    const best = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
+    const byArea = {};
+    tasks.forEach((e) => e.item.area && (byArea[e.item.area] = (byArea[e.item.area] || 0) + 1));
+    const topArea = Object.entries(byArea).sort((a, b) => b[1] - a[1])[0];
+    const diary = items.filter((it) => it.type === 'diario' && inM(it.day));
+    const moods = diary.filter((d) => d.mood);
+    const medals = BADGES.filter((b) => inM(settings.badges?.[b.id]));
+    const spent = items.filter((it) => it.type === 'oggetto' && inM(it.paidOn)).reduce((n, it) => n + (parsePrice(it.paid) || 0), 0);
+    return {
+      tasks: tasks.length,
+      critical: tasks.filter((e) => e.item.priority === 'critico').length,
+      checks: checks.length,
+      topHabits,
+      perfect: (settings.perfectDays || []).filter(inM).length,
+      activeDays: Object.keys(byDay).length,
+      best,
+      topArea: topArea ? { area: areas.find((a) => a.id === topArea[0]), n: topArea[1] } : null,
+      pages: diary.length,
+      mood: moods.length ? moods.reduce((n, d) => n + d.mood, 0) / moods.length : null,
+      medals,
+      spent,
+      goals: items.filter((it) => it.type === 'obiettivo' && isDone(it) && inM(it.doneAt)),
+    };
+  }, [items, month, settings, areas]);
+  const name = monthLabel(`${month}-01`);
+  return (
+    <div className="view spaces">
+      <SubHeader title="Il tuo mese" onBack={onBack} />
+      <div className="month-nav">
+        <button className="icon-btn boxed" aria-label="Mese prima" onClick={() => shift(-1)}>
+          <Icon name="ChevronLeft" />
+        </button>
+        <strong>{name}</strong>
+        <button className="icon-btn boxed" aria-label="Mese dopo" disabled={month >= today.slice(0, 7)} onClick={() => shift(1)}>
+          <Icon name="ChevronRight" />
+        </button>
+      </div>
+      <div className="stat-grid">
+        <div className="stat-card">
+          <span className="stat-num">{r.tasks}</span>
+          <span className="stat-label">cose completate{r.critical ? `, ${r.critical} critiche` : ''}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-num">{r.perfect}</span>
+          <span className="stat-label">giorni con gli anelli chiusi</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-num">{r.checks}</span>
+          <span className="stat-label">volte le tue abitudini</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-num">{r.activeDays}</span>
+          <span className="stat-label">giorni attivi</span>
+        </div>
+      </div>
+      {r.medals.length > 0 && (
+        <section>
+          <SectionTitle>Medaglie del mese</SectionTitle>
+          <div className="medals">
+            {r.medals.map((b) => (
+              <div key={b.id} className={`medal t${b.tier} on`}>
+                <span className="medal-art">
+                  <Icon name={b.icon} size={26} />
+                </span>
+                <strong>{b.name}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <section>
+        <SectionTitle>In breve</SectionTitle>
+        <ul className="facts">
+          {r.goals.length > 0 && <li>Obiettivi raggiunti: {r.goals.map((g) => g.title).join(', ')}.</li>}
+          {r.best && (
+            <li>
+              Il giorno più pieno è stato {longDate(r.best[0]).toLowerCase()}, con {r.best[1]} cose fatte.
+            </li>
+          )}
+          {r.topArea?.area && (
+            <li>
+              L’area più curata: {r.topArea.area.name} ({r.topArea.n}).
+            </li>
+          )}
+          {r.topHabits.length > 0 && <li>Abitudini più costanti: {r.topHabits.map((h) => `${h.it.title} (${h.n})`).join(', ')}.</li>}
+          {r.pages > 0 && (
+            <li>
+              Pagine di diario: {r.pages}
+              {r.mood != null ? `, umore medio ${r.mood.toFixed(1)} su 5` : ''}.
+            </li>
+          )}
+          {r.spent > 0 && <li>Spesi per le cose della lista: {money(r.spent)}.</li>}
+          {!r.tasks && !r.checks && !r.pages && <li>Niente registrato in {name}.</li>}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+/* ---------- scadenze ricorrenti ---------- */
+const TEMPLATES = [
+  { title: 'Bollo auto', icon: 'Car', recur: 'yearly', advanceDays: 14 },
+  { title: 'Revisione auto', icon: 'Car', recur: 'yearly', advanceDays: 30 },
+  { title: 'Assicurazione auto', icon: 'ShieldCheck', recur: 'yearly', advanceDays: 30 },
+  { title: 'Manutenzione caldaia', icon: 'Flame', recur: 'yearly', advanceDays: 30 },
+  { title: 'Cambio filtri condizionatore', icon: 'Thermometer', recur: 'yearly', advanceDays: 14 },
+  { title: 'Rinnovo abbonamento', icon: 'Repeat', recur: 'yearly', advanceDays: 7 },
+  { title: 'Bolletta', icon: 'Zap', recur: 'monthly', advanceDays: 3 },
+  { title: 'Affitto', icon: 'House', recur: 'monthly', advanceDays: 3 },
+];
+
+export function DeadlinesView({ onBack }) {
+  const { items, today, actions } = useApp();
+  const list = items
+    .filter((it) => !isDone(it) && !it.someday && it.when?.kind === 'date' && it.when.date && (it.recur === 'yearly' || it.recur === 'monthly' || it.advanceDays > 0))
+    .sort((a, b) => (a.when.date < b.when.date ? -1 : 1));
+  const add = (t) =>
+    actions.create(
+      { title: t.title, recur: t.recur, advanceDays: t.advanceDays, priority: 'importante', when: { kind: 'date', date: addDays(today, 30) } },
+      { banner: 'Metti la data della prossima scadenza: poi te la ricordo in anticipo, ogni volta.' },
+    );
+  return (
+    <div className="view spaces">
+      <SubHeader title="Scadenze" onBack={onBack} onAdd={() => add({ title: '', recur: 'yearly', advanceDays: 14 })} addLabel="Nuova" />
+      <p className="sheet-intro">Cose che tornano ogni mese o ogni anno. Te le ricordo in anticipo (compaiono in Oggi sotto “In arrivo” e ti arriva una notifica), e quando le segni fatte passano da sole alla volta dopo.</p>
+      <div className="list">
+        {list.map((it) => (
+          <div key={it.id} className="deadline-line">
+            <span className={`deadline-when ${diffDays(it.when.date, today) <= (it.advanceDays || 0) ? 'near' : ''}`}>
+              <strong>{shortDate(it.when.date)}</strong>
+              <em>{diffDays(it.when.date, today) < 0 ? 'scaduta' : diffDays(it.when.date, today) === 0 ? 'oggi' : `tra ${diffDays(it.when.date, today)} gg`}</em>
+            </span>
+            <ItemRow item={it} />
+          </div>
+        ))}
+      </div>
+      {!list.length && <p className="hint-line">Nessuna scadenza ancora. Parti da uno di questi:</p>}
+      <SectionTitle>Aggiungi al volo</SectionTitle>
+      <div className="template-grid">
+        {TEMPLATES.map((t) => (
+          <button key={t.title} className="template" onClick={() => add(t)}>
+            <Icon name={t.icon} size={18} />
+            <span>{t.title}</span>
+            <em>{t.recur === 'yearly' ? 'ogni anno' : 'ogni mese'}</em>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

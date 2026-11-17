@@ -6,11 +6,12 @@ import { Capture } from '../components/Capture.jsx';
 import { Rings, RingsLegend, AreaRing } from '../components/Rings.jsx';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
-import { PRIORITIES, ringStats, stageStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled } from '../lib/model.js';
+import { PRIORITIES, ringStats, stageStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled, upcoming, behind, startOfWeek, diffDays, relativeDate, monthLabel, addDays } from '../lib/model.js';
+import { reviewWeek } from '../components/Review.jsx';
 import { cloudEnabled } from '../lib/firebase.js';
 
 export function Today() {
-  const { items, areas, today, actions, ready, settings } = useApp();
+  const { items, areas, today, actions, ready, settings, itemById } = useApp();
   const stats = useMemo(() => ringStats(items, today), [items, today]);
   const stages = useMemo(() => stageStats(items, today), [items, today]);
   const [celebrate, setCelebrate] = useState(false);
@@ -52,6 +53,13 @@ export function Today() {
   const doneToday = doable.filter((it) => doneOn(it, today));
   const inbox = items.filter((it) => it.type === 'nota' && !isDone(it)).length;
   const sortedAreas = [...areas].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const soon = upcoming(items, today);
+  const lateCount = behind(items, today).length;
+  const weekday = new Date(`${today}T12:00:00`).getDay();
+  const reviewDue = ready && (weekday === 0 || weekday === 1) && settings.lastReview !== reviewWeek(today);
+  const weekGoals = settings.weekFocus?.week === startOfWeek(today) ? (settings.weekFocus.ids || []).map((id) => itemById[id]).filter(Boolean) : [];
+  const lastMonth = addDays(today.slice(0, 8) + '01', -1).slice(0, 7);
+  const monthDue = ready && Number(today.slice(8)) <= 5 && settings.monthSeen !== lastMonth && items.some((it) => (it.doneAt || '').startsWith(lastMonth));
   const nothing = !focus.length && !due.length && !doneToday.length && !habits.length;
 
   return (
@@ -105,6 +113,56 @@ export function Today() {
         </div>
 
         <div className="today-main">
+          <div className="quick-actions">
+            <button className="quick" onClick={() => actions.open('time')}>
+              <Icon name="Timer" size={18} />
+              Ho tempo
+            </button>
+            {lateCount > 0 && (
+              <button className="quick warn" onClick={() => actions.open('catchup')}>
+                <Icon name="CalendarClock" size={18} />
+                Rimetti in ordine <span className="quick-n">{lateCount}</span>
+              </button>
+            )}
+            <button className="quick" onClick={() => actions.open('review')}>
+              <Icon name="ClipboardCheck" size={18} />
+              Revisione
+            </button>
+          </div>
+
+          {reviewDue && (
+            <button className="promo" onClick={() => actions.open('review')}>
+              <Icon name="ClipboardCheck" size={22} />
+              <span>
+                <strong>È il momento della revisione della settimana</strong>
+                <span>Cinque minuti: svuoti la Inbox, sistemi ciò che è indietro e scegli tre obiettivi.</span>
+              </span>
+              <Icon name="ChevronRight" size={18} />
+            </button>
+          )}
+
+          {monthDue && (
+            <button className="promo violet" onClick={() => actions.go('spazi', 'mese')}>
+              <Icon name="CalendarRange" size={22} />
+              <span>
+                <strong>Il riepilogo di {monthLabel(lastMonth + '-01').split(' ')[0]} è pronto</strong>
+                <span>Anelli chiusi, medaglie, abitudini e umore del mese.</span>
+              </span>
+              <Icon name="ChevronRight" size={18} />
+            </button>
+          )}
+
+          {weekGoals.length > 0 && (
+            <section>
+              <SectionTitle right={<span className="section-note">{weekGoals.filter(isDone).length}/{weekGoals.length}</span>}>Obiettivi della settimana</SectionTitle>
+              <div className="list">
+                {weekGoals.map((it) => (
+                  <ItemRow key={it.id} item={it} showType />
+                ))}
+              </div>
+            </section>
+          )}
+
           <section>
             <SectionTitle right={<span className="section-note">{focus.length}/3</span>}>Focus di oggi</SectionTitle>
             <div className="list">
@@ -117,7 +175,15 @@ export function Today() {
 
           {late.length > 0 && (
             <section>
-              <SectionTitle>Scaduti</SectionTitle>
+              <SectionTitle
+                right={
+                  <button className="link-btn" onClick={() => actions.open('catchup')}>
+                    Rimetti in ordine
+                  </button>
+                }
+              >
+                Scaduti
+              </SectionTitle>
               <div className="list">
                 {late.map((it) => (
                   <ItemRow key={it.id} item={it} star />
@@ -143,6 +209,17 @@ export function Today() {
               <div className="list">
                 {asap.map((it) => (
                   <ItemRow key={it.id} item={it} star />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {soon.length > 0 && (
+            <section>
+              <SectionTitle>In arrivo</SectionTitle>
+              <div className="list">
+                {soon.map((it) => (
+                  <ItemRow key={it.id} item={it} showType />
                 ))}
               </div>
             </section>

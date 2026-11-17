@@ -45,6 +45,27 @@ export function plan(items, settings, now = Date.now()) {
         out.push({ item: it, key, payload: { title: `Oggi: ${it.title}`, body: `${PRIO[it.priority] || 'Normale'} · senza un orario`, tag: `it-${it.id}`, url: '/' } });
     }
   }
+  // Scadenze con anticipo: un avviso alle 9 quando si entra nella finestra.
+  const days = (a, b) => Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000);
+  if (now >= romeToMs(today, MORNING))
+    for (const it of open) {
+      const w = it.when || {};
+      if (!(it.advanceDays > 0) || w.kind !== 'date' || !w.date || w.date <= today) continue;
+      const left = days(w.date, today);
+      const key = `${w.date} anticipo`;
+      if (left <= it.advanceDays && it.notifiedAdvance !== key)
+        out.push({
+          item: it,
+          key,
+          field: 'notifiedAdvance',
+          payload: {
+            title: `${left === 1 ? 'Domani' : `Tra ${left} giorni`}: ${it.title}`,
+            body: `Scadenza del ${w.date.split('-').reverse().join('/')} · ${PRIO[it.priority] || 'Normale'}`,
+            tag: `adv-${it.id}`,
+            url: '/',
+          },
+        });
+    }
   const asap = open.filter((it) => it.when?.kind === 'asap');
   let digest = null;
   if (asap.length && now >= romeToMs(today, MORNING) && settings.lastAsapDigest !== today) {
@@ -79,7 +100,7 @@ export default async function handler(req, res) {
       const r = await sendAll(alive, d.payload);
       alive = r.alive;
       sent += r.sent;
-      await db.patch(`items/${d.item.id}`, { notified: d.key });
+      await db.patch(`items/${d.item.id}`, { [d.field || 'notified']: d.key });
     }
     const patch = {};
     if (digest) {

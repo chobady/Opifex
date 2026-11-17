@@ -1,6 +1,6 @@
 // Livello dati: Firestore quando Firebase e' configurato, altrimenti localStorage
 // (modalita' locale: utile per provare l'app prima di collegare Firebase).
-import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { cloudEnabled, db } from './firebase.js';
 
 const LOCAL_KEY = 'opifex.local.v1';
@@ -62,7 +62,28 @@ const localStore = {
   async saveSettings(_uid, patch) {
     writeLocal({ ...memory, settings: { ...memory.settings, ...patch } });
   },
+  async savePhoto(_uid, id, data) {
+    const all = readPhotos();
+    all[id] = data;
+    localStorage.setItem(PHOTO_KEY, JSON.stringify(all));
+  },
+  async getPhoto(_uid, id) {
+    return readPhotos()[id] || null;
+  },
+  async removePhoto(_uid, id) {
+    const all = readPhotos();
+    delete all[id];
+    localStorage.setItem(PHOTO_KEY, JSON.stringify(all));
+  },
 };
+const PHOTO_KEY = 'opifex.photos.v1';
+function readPhotos() {
+  try {
+    return JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
 
 /* ---------- cloud ---------- */
 const cloudStore = {
@@ -114,6 +135,10 @@ const cloudStore = {
   saveArea: (uid, area) => setDoc(doc(db, 'users', uid, 'areas', area.id), clean(area)),
   removeArea: (uid, id) => deleteDoc(doc(db, 'users', uid, 'areas', id)),
   saveSettings: (uid, patch) => setDoc(doc(db, 'users', uid, 'meta', 'settings'), clean(patch), { merge: true }),
+  // Le foto stanno in documenti separati (max ~1 MB ciascuno), cosi' la lista resta leggera.
+  savePhoto: (uid, id, data) => setDoc(doc(db, 'users', uid, 'photos', id), { data, at: Date.now() }),
+  getPhoto: async (uid, id) => (await getDoc(doc(db, 'users', uid, 'photos', id))).data()?.data || null,
+  removePhoto: (uid, id) => deleteDoc(doc(db, 'users', uid, 'photos', id)),
 };
 
 export const store = cloudEnabled ? cloudStore : localStore;
