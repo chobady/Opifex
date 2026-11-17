@@ -140,6 +140,9 @@ export default async function handler(req, res) {
     const at = /^\d{2}:\d{2}$/.test(settings.morningAt || '') ? settings.morningAt : '07:00';
     if (settings.morningOff !== true && settings.morning?.date !== today && Date.now() >= romeToMs(today, at)) {
       const weekday = new Date().toLocaleDateString('it-IT', { weekday: 'long', timeZone: 'Europe/Rome' });
+      // Prima segno che il riepilogo di oggi c'e' (testo semplice): se il salvataggio fallisse,
+      // non richiamo Gemini a ogni giro del timer consumando la quota.
+      await db.patch('meta/settings', { morning: { date: today, text: fallbackMorning(morningFacts(items, today)) } });
       morning = { date: today, text: await morningText(items, today, weekday) };
       await db.patch('meta/settings', { morning });
     }
