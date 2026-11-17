@@ -10,8 +10,6 @@ const JWKS = createRemoteJWKSet(
 const API = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 
-// Le richieste con ricerca sul web possono durare un po'.
-export const config = { maxDuration: 60 };
 
 function firebaseCfg() {
   return parseFirebaseConfig(COMMITTED_FIREBASE_CONFIG) || parseFirebaseConfig(process.env.VITE_FIREBASE_CONFIG);
@@ -45,11 +43,20 @@ function httpError(status, message) {
 }
 
 export async function readBody(req) {
-  if (req.body && typeof req.body === 'object') return req.body;
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
   if (typeof req.body === 'string') return JSON.parse(req.body || '{}');
-  const chunks = [];
-  for await (const c of req) chunks.push(c);
-  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  if (Buffer.isBuffer(req.body)) return JSON.parse(req.body.toString('utf8') || '{}');
+  if (req.readableEnded || req.complete) return {};
+  // Lettura del corpo con un limite di tempo: non deve mai bloccare la funzione.
+  const text = await Promise.race([
+    (async () => {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      return Buffer.concat(chunks).toString('utf8');
+    })(),
+    new Promise((_, no) => setTimeout(() => no(httpError(400, 'Richiesta non leggibile.')), 8000)),
+  ]);
+  return JSON.parse(text || '{}');
 }
 
 /* ---------- Gemini ---------- */
@@ -88,6 +95,10 @@ async function generateFull({ system, parts, history = [], json, search = false 
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(payload.tools ? 40000 : 25000),
+    }).catch((e) => {
+      if (e?.name === 'TimeoutError' || e?.name === 'AbortError') return new Response(JSON.stringify({ error: { message: 'Gemini non ha risposto in tempo.' } }), { status: 504 });
+      throw e;
     });
 
   // Un modello: con i ripieghi per le opzioni non supportate e per il limite della ricerca web.
@@ -118,7 +129,7 @@ async function generateFull({ system, parts, history = [], json, search = false 
     res = await attempt(m);
     if (res.ok) break;
     failures.push(`${m}: ${res.status}`);
-    if (![404, 429, 500, 503].includes(res.status)) break;
+    if (![404, 429, 500, 503, 504].includes(res.status)) break;
   }
   if (!res.ok && failures.every((f) => f.endsWith('404'))) {
     const alt = await pickFallbackModel(key);
