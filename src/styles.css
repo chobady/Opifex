@@ -580,6 +580,125 @@ p {
   background: var(--amber);
   color: var(--amber);
 }
+/* giornata completa: anelli d'oro */
+.rings.golden .ring-seg,
+.rings.golden .ring-track {
+  stroke: url(#opx-gold);
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 200, 60, 0.75));
+}
+.rings.golden .stage-todo .ring-seg,
+.rings.golden .stage-doing .ring-seg {
+  opacity: 0.55;
+}
+.rings.golden:not(.victory) .stage-done .ring-seg {
+  animation: goldPulse 3.2s ease-in-out infinite;
+}
+.rings.golden .rings-num {
+  background: linear-gradient(135deg, #fff3b0, #ffd34d 45%, #e9a300);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(255, 200, 60, 0.5));
+}
+.rings.golden .rings-sub {
+  max-width: 64px;
+  text-align: center;
+  line-height: 1.15;
+  color: #ffd34d;
+}
+.rings.victory .stage {
+  transform-box: view-box;
+  transform-origin: 100px 100px;
+}
+.rings.victory .stage-todo {
+  animation: spinA 2.2s cubic-bezier(0.25, 0.9, 0.3, 1) both;
+}
+.rings.victory .stage-doing {
+  animation: spinB 2.2s cubic-bezier(0.25, 0.9, 0.3, 1) both;
+}
+.rings.victory .stage-done {
+  animation: spinC 2.2s cubic-bezier(0.25, 0.9, 0.3, 1) both;
+}
+.rings.victory svg {
+  animation: victoryPop 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rings.victory::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 211, 77, 0.35), transparent 65%);
+  animation: victoryFlash 1.8s ease-out both;
+  pointer-events: none;
+}
+.burst.gold i,
+.burst.gold i:nth-child(3n + 1),
+.burst.gold i:nth-child(3n + 2) {
+  background: #ffd34d;
+  color: #ffd34d;
+}
+.burst.gold i:nth-child(2n) {
+  background: #fff3b0;
+  color: #fff3b0;
+  width: 4px;
+  height: 4px;
+}
+@keyframes spinA {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spinB {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes spinC {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(720deg);
+  }
+}
+@keyframes victoryPop {
+  0% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes victoryFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+@keyframes goldPulse {
+  50% {
+    filter: drop-shadow(0 0 9px rgba(255, 200, 60, 0.95));
+  }
+}
+
 .legend {
   flex: 1;
   min-width: 0;

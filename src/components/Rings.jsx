@@ -43,9 +43,19 @@ export function Rings({ stats, celebrate }) {
   const { total } = stats;
   const done = stats.done.length;
   const label = STAGES.map((s) => `${s.label} ${stats[s.id].length}`).join(', ');
+  // Giornata completa: tutto al centro -> anelli d'oro (restano d'oro finché resta tutto fatto).
+  const golden = total > 0 && done === total;
   return (
-    <div className={`rings ${celebrate ? 'celebrate' : ''} ${total > 0 && done === total ? 'all-done' : ''}`}>
-      <svg viewBox="0 0 200 200" role="img" aria-label={`Impegni di oggi: ${label}, fatti ${done} di ${total}`}>
+    <div className={`rings ${celebrate ? 'celebrate victory' : ''} ${golden ? 'all-done golden' : ''}`}>
+      <svg viewBox="0 0 200 200" role="img" aria-label={golden ? `Giornata completa: fatti tutti i ${total} impegni` : `Impegni di oggi: ${label}, fatti ${done} di ${total}`}>
+        <defs>
+          <linearGradient id="opx-gold" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fff3b0" />
+            <stop offset="0.35" stopColor="#ffd34d" />
+            <stop offset="0.65" stopColor="#e9a300" />
+            <stop offset="1" stopColor="#fff0a0" />
+          </linearGradient>
+        </defs>
         {STAGES.map((s) => (
           <StageRing key={s.id} stage={s} list={stats[s.id]} total={total} mounted={mounted} />
         ))}
@@ -56,7 +66,7 @@ export function Rings({ stats, celebrate }) {
             <span className="rings-num">
               {done}/{total}
             </span>
-            <span className="rings-sub">fatti oggi</span>
+            <span className="rings-sub">{golden ? 'giornata completa' : 'fatti oggi'}</span>
           </>
         ) : (
           <>
@@ -66,9 +76,9 @@ export function Rings({ stats, celebrate }) {
         )}
       </div>
       {celebrate && (
-        <div className="burst" aria-hidden="true">
-          {Array.from({ length: 16 }, (_, i) => (
-            <i key={i} style={{ '--a': `${i * 22.5}deg`, '--d': `${(i % 4) * 40}ms` }} />
+        <div className="burst gold" aria-hidden="true">
+          {Array.from({ length: 24 }, (_, i) => (
+            <i key={i} style={{ '--a': `${i * 15}deg`, '--d': `${300 + (i % 6) * 70}ms` }} />
           ))}
         </div>
       )}

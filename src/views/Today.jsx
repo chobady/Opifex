@@ -15,6 +15,8 @@ export function Today() {
   const stats = useMemo(() => ringStats(items, today), [items, today]);
   const stages = useMemo(() => stageStats(items, today), [items, today]);
   const [celebrate, setCelebrate] = useState(false);
+  const party = useRef(null);
+  useEffect(() => () => clearTimeout(party.current), []);
   const [showDone, setShowDone] = useState(false);
   const prev = useRef(null);
 
@@ -24,10 +26,11 @@ export function Today() {
     const full = stages.total > 0 && stages.done.length === stages.total;
     if (prev.current === false && full) {
       setCelebrate(true);
-      sfx.ring();
-      const t = setTimeout(() => setCelebrate(false), 1600);
-      prev.current = full;
-      return () => clearTimeout(t);
+      sfx.victory();
+      navigator.vibrate?.([60, 40, 60, 40, 180]);
+      // Il timer non dipende dall'effetto: se i dati cambiano durante la festa, si spegne comunque.
+      clearTimeout(party.current);
+      party.current = setTimeout(() => setCelebrate(false), 2600);
     }
     prev.current = full;
     return undefined;

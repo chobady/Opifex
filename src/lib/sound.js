@@ -70,6 +70,17 @@ export const sfx = {
     [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ f, t: 0.42, type: 'sine', g: 0.07, delay: i * 0.075 }));
     tone({ f: 2093, f2: 4186, t: 0.6, type: 'triangle', g: 0.02, delay: 0.38 });
   },
+  // Fanfara della giornata completata: arpeggio che sale, accordo pieno, scintillio finale.
+  victory() {
+    const notes = [392, 523, 659, 784, 1047];
+    notes.forEach((f, i) => tone({ f, t: 0.22, type: 'triangle', g: 0.07, delay: i * 0.09 }));
+    [523, 659, 784, 1047].forEach((f) => {
+      tone({ f, t: 1.5, type: 'sawtooth', g: 0.028, delay: 0.5, cutoff: 2200 });
+      tone({ f: f * 1.003, t: 1.5, type: 'sine', g: 0.045, delay: 0.5 });
+    });
+    tone({ f: 131, f2: 262, t: 1.2, type: 'sine', g: 0.08, delay: 0.5 });
+    [2093, 2637, 3136, 4186].forEach((f, i) => tone({ f, t: 0.35, type: 'sine', g: 0.018, delay: 1.0 + i * 0.12 }));
+  },
   send() {
     tone({ f: 260, f2: 1900, t: 0.26, type: 'sawtooth', g: 0.035, cutoff: 2400 });
   },
