@@ -13,14 +13,18 @@ async function call(payload) {
   } catch {
     throw new Error("Assistente non raggiungibile: controlla la connessione.");
   }
+  const raw = await res.text().catch(() => '');
   let data = null;
   try {
-    data = await res.json();
+    data = JSON.parse(raw);
   } catch {
-    /* risposta non JSON (es. in sviluppo locale l'endpoint non esiste) */
+    /* risposta non JSON: errore di Vercel (tempo scaduto, funzione bloccata) */
   }
-  if (!res.ok || !data) throw new Error(data?.error || "L'assistente non è disponibile in questo momento.");
-  return data;
+  if (res.ok && data) return data;
+  if (data?.error) throw new Error(data.error);
+  const hint = res.status === 504 || /TIMEOUT/i.test(raw) ? ' (tempo scaduto sul server)' : '';
+  const code = (raw.match(/[A-Z_]{12,}/) || [])[0] || raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  throw new Error(`L'assistente non ha risposto${hint}. Codice ${res.status}${code ? `: ${code}` : ''}.`);
 }
 
 // Trasforma un pensiero (testo, foto o audio) in una o piu' proposte di elementi.
