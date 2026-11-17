@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CAL_COLORS } from '../lib/calendars.js';
 import { subscribePush, currentPushId, testPush, pushSupported, isIOS, isStandalone } from '../lib/push.js';
 import { Icon, ICON_GROUPS, AREA_SUGGESTIONS } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
@@ -87,12 +88,14 @@ function CopyLine({ label, value }) {
   );
 }
 
+const SALVADANAIO_URL = 'https://salvadanaio11.vercel.app';
+
 /* ---------- oggetto comprato ---------- */
 export function BoughtSheet({ item, onClose }) {
   const { actions, settings, today } = useApp();
   const guess = parsePrice(item.price);
   const [paid, setPaid] = useState(guess != null ? String(guess).replace('.', ',') : '');
-  const url = (settings.salvadanaioUrl || '').trim();
+  const url = ((settings.salvadanaioUrl || '').trim() || SALVADANAIO_URL).replace(/\/+$/, '');
 
   function confirm() {
     const n = parsePrice(paid);
@@ -107,16 +110,15 @@ export function BoughtSheet({ item, onClose }) {
     onClose();
     return n;
   }
-  async function copyForSalvadanaio() {
+  // Apre Salvadanaio con la spesa già compilata (lì scegli la categoria e salvi).
+  function toSalvadanaio() {
     const n = confirm();
-    const line = `${item.title}${n != null ? ` - ${money(n)}` : ''}`;
-    try {
-      await navigator.clipboard.writeText(line);
-      actions.toast('Comprato. Ho copiato la spesa: incollala in Salvadanaio.');
-    } catch {
-      actions.toast('Comprato. Non sono riuscito a copiare la spesa.');
-    }
-    if (url) window.open(url, '_blank', 'noopener');
+    const q = new URLSearchParams({ nuova: '1', cosa: item.title, data: today || todayStr(), da: 'opifex' });
+    if (n != null) q.set('importo', String(n));
+    const where = (item.url || '').trim();
+    if (where && !/^https?:/i.test(where)) q.set('dove', where);
+    window.open(`${url}/?${q}`, '_blank', 'noopener');
+    actions.toast('Comprato. Conferma la spesa in Salvadanaio.');
   }
 
   return (
@@ -129,11 +131,11 @@ export function BoughtSheet({ item, onClose }) {
         <Icon name="Check" size={18} />
         Segna comprato
       </button>
-      <button className="btn ghost wide" onClick={copyForSalvadanaio}>
+      <button className="btn ghost wide" onClick={toSalvadanaio}>
         <Icon name="Wallet" size={18} />
-        Comprato e copia la spesa per Salvadanaio
+        Comprato e registra in Salvadanaio
       </button>
-      {!url && <p className="field-hint">Nelle impostazioni puoi indicare l’indirizzo di Salvadanaio: lo apro dopo aver copiato la spesa.</p>}
+      <p className="field-hint">Salvadanaio si apre con la spesa già compilata: scegli la categoria e salva.</p>
     </Sheet>
   );
 }
@@ -377,6 +379,65 @@ function NotificationsBox() {
   );
 }
 
+/* ---------- calendari Apple ---------- */
+function CalendarsBox() {
+  const { settings, actions } = useApp();
+  const cals = settings.calendars || [];
+  const [name, setName] = useState('');
+  const [url, setUrl] = useState('');
+  const save = (next) => actions.saveSettings({ calendars: next });
+  function add() {
+    const u = url.trim();
+    if (!/^(webcals?|https):\/\//i.test(u)) {
+      sfx.error();
+      actions.toast('Incolla il link pubblico del calendario (inizia con webcal:// o https://).');
+      return;
+    }
+    sfx.done();
+    save([...cals, { id: uid(), name: name.trim() || `Calendario ${cals.length + 1}`, url: u, color: CAL_COLORS[cals.length % CAL_COLORS.length], on: true }]);
+    setName('');
+    setUrl('');
+  }
+  return (
+    <section className="shortcut-box">
+      <h3>
+        <Icon name="CalendarDays" size={18} /> Calendari Apple
+      </h3>
+      <p className="sheet-intro">I tuoi eventi di iCloud compaiono nel Calendario di Opifex, in sola lettura e con il loro colore.</p>
+      {!cloudEnabled && <p className="field-hint">Servono il login e il cloud.</p>}
+      {cals.map((c) => (
+        <div key={c.id} className="cal-line" style={{ '--cc': c.color }}>
+          <i />
+          <span className="grow">{c.name}</span>
+          <button
+            className={`chip ${c.on !== false ? 'on' : ''}`}
+            aria-pressed={c.on !== false}
+            onClick={() => save(cals.map((x) => (x.id === c.id ? { ...x, on: x.on === false } : x)))}
+          >
+            {c.on !== false ? 'Visibile' : 'Nascosto'}
+          </button>
+          <button className="icon-btn small" aria-label={`Togli ${c.name}`} onClick={() => (sfx.remove(), save(cals.filter((x) => x.id !== c.id)))}>
+            <Icon name="Trash2" size={16} />
+          </button>
+        </div>
+      ))}
+      <div className="when-grid">
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome (es. Lavoro)" aria-label="Nome del calendario" />
+        <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="webcal://p…icloud.com/…" aria-label="Link del calendario" />
+      </div>
+      <button className="btn ghost" onClick={add}>
+        <Icon name="Plus" size={18} />
+        Aggiungi calendario
+      </button>
+      <ol className="solution-steps">
+        <li>Sull’iPhone apri Calendario → Calendari in basso → tocca la (i) accanto al calendario.</li>
+        <li>Attiva “Calendario pubblico”, tocca “Condividi link…” → Copia, e incollalo qui sopra. Ripeti per ogni calendario.</li>
+        <li>Chi ha il link può vedere gli eventi di quel calendario: tienilo per te.</li>
+      </ol>
+    </section>
+  );
+}
+
 /* ---------- widget e contatti ---------- */
 function WidgetBox() {
   const { actions } = useApp();
@@ -514,7 +575,7 @@ export function SettingsSheet({ onClose }) {
             value={sal}
             onChange={(e) => setSal(e.target.value)}
             onBlur={() => actions.saveSettings({ salvadanaioUrl: sal.trim() })}
-            placeholder="https://…"
+            placeholder={SALVADANAIO_URL}
             aria-label="Indirizzo di Salvadanaio"
           />
         </span>
@@ -540,6 +601,8 @@ export function SettingsSheet({ onClose }) {
 
       <ThemeBox />
 
+      <CalendarsBox />
+
       <WidgetBox />
 
       <ContactsBox />
@@ -555,7 +618,7 @@ export function SettingsSheet({ onClose }) {
           </span>
         </button>
       )}
-      <p className="version">Opifex 0.5.0</p>
+      <p className="version">Opifex 0.6.0</p>
     </Sheet>
   );
 }

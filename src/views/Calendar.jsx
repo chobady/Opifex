@@ -4,6 +4,7 @@ import { useApp } from '../lib/ctx.js';
 import { sfx } from '../lib/sound.js';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { Chips, Empty, SectionTitle } from '../components/ui.jsx';
+import { useExternalEvents } from '../lib/calendars.js';
 import { addDays, startOfWeek, fromStr, shortDate, weekdayShort, longDate, occursOn, doneOn, isDone, isOverdue, sortByTime, sortItems, monthLabel } from '../lib/model.js';
 
 const MODES = [
@@ -12,11 +13,16 @@ const MODES = [
 ];
 
 export function Calendar() {
-  const { items, today, actions } = useApp();
+  const { items, today, actions, settings } = useApp();
   const [mode, setMode] = useState('week');
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const dated = useMemo(() => items.filter((it) => it.type !== 'diario' && !it.someday && it.when?.kind === 'date' && it.when.date), [items]);
+
+  const rangeFrom = mode === 'week' ? weekStart : today;
+  const rangeTo = mode === 'week' ? addDays(weekStart, 6) : addDays(today, 59);
+  const ext = useExternalEvents(settings.calendars, rangeFrom, rangeTo);
+  const extFor = (day) => ext.events.filter((e) => e.date === day);
 
   const forDay = (day) => {
     const list = dated.filter((it) => occursOn(it, day) || (it.recur && (it.doneLog || []).includes(day)));
@@ -52,6 +58,7 @@ export function Calendar() {
               <Icon name="ChevronRight" />
             </button>
           </div>
+          {ext.errors.length > 0 && <p className="field-hint">Calendari: {ext.errors.map((e) => e.error).join(' ')}</p>}
           <div className="week" key={weekStart}>
             {days.map((day) => {
               const list = forDay(day);
@@ -66,6 +73,9 @@ export function Calendar() {
                     </button>
                   </header>
                   <div className="day-items">
+                    {extFor(day).map((e, k) => (
+                      <ExtEvent key={`e${k}`} e={e} />
+                    ))}
                     {list.map((it) => {
                       const done = isDone(it) || doneOn(it, day);
                       return (
@@ -77,7 +87,7 @@ export function Calendar() {
                         </button>
                       );
                     })}
-                    {!list.length && <span className="day-empty">—</span>}
+                    {!list.length && !extFor(day).length && <span className="day-empty">—</span>}
                   </div>
                 </section>
               );
@@ -85,13 +95,23 @@ export function Calendar() {
           </div>
         </>
       ) : (
-        <Agenda dated={dated} />
+        <Agenda dated={dated} ext={ext.events} />
       )}
     </div>
   );
 }
 
-function Agenda({ dated }) {
+function ExtEvent({ e }) {
+  return (
+    <div className="mini ext" style={{ '--cc': e.calendar.color }} title={`${e.calendar.name || 'Calendario'}${e.where ? ' · ' + e.where : ''}`}>
+      <span className="mini-dot" />
+      {e.time ? <span className="mini-time">{e.time}</span> : <span className="mini-time">tutto il giorno</span>}
+      <span className="mini-title">{e.title}</span>
+    </div>
+  );
+}
+
+function Agenda({ dated, ext = [] }) {
   const { items, today, actions } = useApp();
   const open = items.filter((it) => !isDone(it) && !it.someday && it.type !== 'diario' && it.type !== 'abitudine');
   const late = sortItems(open.filter((it) => isOverdue(it, today)));
@@ -100,10 +120,11 @@ function Agenda({ dated }) {
     for (let i = 0; i < 60; i += 1) {
       const day = addDays(today, i);
       const list = sortByTime(dated.filter((it) => !isDone(it) && it.when.date === day));
-      if (list.length) out.push({ day, list });
+      const evs = ext.filter((e) => e.date === day);
+      if (list.length || evs.length) out.push({ day, list, evs });
     }
     return out;
-  }, [dated, today]);
+  }, [dated, today, ext]);
   const asap = sortItems(open.filter((it) => it.when?.kind === 'asap'));
   const undated = sortItems(open.filter((it) => (it.when?.kind || 'none') === 'none' && it.type === 'impegno'));
   const empty = !late.length && !upcoming.length && !asap.length && !undated.length;
@@ -120,10 +141,13 @@ function Agenda({ dated }) {
           </div>
         </section>
       )}
-      {upcoming.map(({ day, list }) => (
+      {upcoming.map(({ day, list, evs }) => (
         <section key={day}>
           <SectionTitle right={<span className="section-note">{day === today ? 'oggi' : day === addDays(today, 1) ? 'domani' : ''}</span>}>{longDate(day)}</SectionTitle>
           <div className="list">
+            {evs.map((e, k) => (
+              <ExtEvent key={`e${k}`} e={e} />
+            ))}
             {list.map((it) => (
               <ItemRow key={it.id} item={it} showType={it.type !== 'impegno'} />
             ))}

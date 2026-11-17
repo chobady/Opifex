@@ -3431,6 +3431,31 @@ textarea.input {
   text-decoration: none;
 }
 
+.mini.ext {
+  --pc: var(--cc);
+  border: 1px dashed color-mix(in srgb, var(--cc) 55%, transparent);
+  background: color-mix(in srgb, var(--cc) 8%, transparent);
+  cursor: default;
+}
+.list > .mini.ext {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--cc) 55%, transparent);
+}
+.cal-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.cal-line > i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--cc);
+  box-shadow: 0 0 8px var(--cc);
+}
+
 /* temi */
 .themes {
   display: flex;
