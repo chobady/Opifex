@@ -90,12 +90,14 @@ async function generateFull({ system, parts, history = [], json, search = false 
   if (search) body.tools = [{ google_search: {} }];
   else if (json) body.generationConfig = { responseMimeType: 'application/json' };
 
+  // Tempo massimo complessivo (Vercel ferma la funzione a 60 secondi).
+  const deadline = Date.now() + 52000;
   const run = async (model, payload) =>
     fetch(`${API}/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(payload.tools ? 40000 : 25000),
+      signal: AbortSignal.timeout(Math.max(1000, Math.min(payload.tools ? 40000 : 25000, deadline - Date.now() - 1500))),
     }).catch((e) => {
       if (e?.name === 'TimeoutError' || e?.name === 'AbortError') return new Response(JSON.stringify({ error: { message: 'Gemini non ha risposto in tempo.' } }), { status: 504 });
       throw e;
@@ -112,10 +114,7 @@ async function generateFull({ system, parts, history = [], json, search = false 
       const { tools: _t, ...plain } = body;
       r = await run(model, json ? { ...plain, generationConfig: { responseMimeType: 'application/json' } } : plain);
     }
-    if (r.status === 503 || r.status === 500) {
-      await new Promise((ok) => setTimeout(ok, 1000));
-      r = await run(model, body);
-    }
+    if ((r.status === 503 || r.status === 500) && deadline - Date.now() > 8000) r = await run(model, body);
     return r;
   }
 
@@ -125,6 +124,7 @@ async function generateFull({ system, parts, history = [], json, search = false 
   let model = chain[0];
   const failures = [];
   for (const m of chain) {
+    if (deadline - Date.now() < 6000) break;
     model = m;
     res = await attempt(m);
     if (res.ok) break;
@@ -149,7 +149,12 @@ async function generateFull({ system, parts, history = [], json, search = false 
       /* niente */
     }
     const tried = ` (provati: ${failures.join(', ')})`;
-    if (res.status === 429) throw httpError(429, `Google ha risposto “quota esaurita” per tutti i modelli${tried}.${why ? ` Dettaglio: ${why}` : ''}`);
+    if (res.status === 429)
+      throw httpError(
+        429,
+        `Quota gratuita di Gemini esaurita per questa chiave${tried}. Il limite al minuto si libera in un paio di minuti, quello giornaliero verso le 9 del mattino (ora italiana).`,
+      );
+    if (res.status === 504) throw httpError(504, `Gemini non ha risposto in tempo${tried}. Riprova.`);
     if (res.status === 401 || res.status === 403) throw httpError(500, `La chiave Gemini non è valida o non è abilitata${why ? `: ${why}` : '.'}`);
     throw httpError(502, `Gemini non ha risposto correttamente${tried}.${why ? ` Dettaglio: ${why}` : ''}`);
   }
