@@ -42,6 +42,7 @@ function drawRings(data, size) {
   const total = Math.max(1, data.total);
   radii.forEach((r, ring) => {
     const list = data.rings[ring] || [];
+    const slots = data.slots || null;
     const gapDeg = data.total > 1 ? Math.min(7, (360 / total) * 0.3) : 0;
     for (let i = 0; i < Math.max(data.total, 1); i += 1) {
       const a0 = -90 + (i * 360) / total + gapDeg / 2;
@@ -55,7 +56,9 @@ function drawRings(data, size) {
       p.addLines(pts);
       ctx.addPath(p);
       ctx.setLineWidth(w);
-      ctx.setStrokeColor(i < list.length ? pal[list[i]] || pal.normale : TRACK);
+      const on = slots ? slots[i] && slots[i].ring === ring : i < list.length;
+      const prio = slots ? slots[i] && slots[i].p : list[i];
+      ctx.setStrokeColor(on ? pal[prio] || pal.normale : TRACK);
       ctx.strokePath();
     }
   });

@@ -2,31 +2,43 @@ import { useEffect, useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
 import { PRIORITIES, STAGES } from '../lib/model.js';
 
-// Un anello diviso in tanti spicchi quanti sono gli impegni di oggi: gli spicchi accesi
-// (colorati per importanza) sono gli impegni che si trovano in quella fase.
-function StageRing({ stage, list, total, mounted }) {
+// Ogni impegno di oggi ha la sua "fetta" fissa (stesso angolo in tutti e tre gli anelli):
+// quando avanza di fase, si accende la fetta dell'anello più interno, nello stesso punto.
+const WEIGHT = { critico: 0, importante: 1, normale: 2 };
+export function ringSlots(stats) {
+  const all = [...stats.todo, ...stats.doing, ...stats.done];
+  return all.sort(
+    (a, b) =>
+      (WEIGHT[a.priority] ?? 2) - (WEIGHT[b.priority] ?? 2) ||
+      (a.createdAt || 0) - (b.createdAt || 0) ||
+      String(a.id).localeCompare(String(b.id)),
+  );
+}
+
+function StageRing({ stage, slots, stageOf, mounted }) {
   const { r } = stage;
+  const total = slots.length;
   const c = 2 * Math.PI * r;
-  const slots = Math.max(total, 1);
-  const slot = c / slots;
+  const n = Math.max(total, 1);
+  const slot = c / n;
   const gap = total > 1 ? Math.min(7, slot * 0.34) : 0;
   const dash = slot - gap;
   return (
     <g className={`stage stage-${stage.id}`}>
       {total === 0 && <circle className="ring-track" cx="100" cy="100" r={r} />}
-      {Array.from({ length: total }, (_, i) => {
-        const it = list[i];
-        const rot = -90 + (i * 360) / slots + ((gap / 2) * 360) / c;
+      {slots.map((it, i) => {
+        const on = stageOf[it.id] === stage.id;
+        const rot = -90 + (i * 360) / n + ((gap / 2) * 360) / c;
         return (
           <circle
-            key={it ? it.id : `e${i}`}
-            className={it ? `ring-seg on p-${it.priority || 'normale'}` : 'ring-seg empty'}
+            key={`${it.id}-${on ? 'on' : 'off'}`}
+            className={on ? `ring-seg on p-${it.priority || 'normale'}` : 'ring-seg empty'}
             cx="100"
             cy="100"
             r={r}
             strokeDasharray={`${dash} ${c}`}
             transform={`rotate(${rot} 100 100)`}
-            style={it ? { '--dash': dash, animationDelay: mounted ? '0ms' : `${120 + i * 70}ms` } : undefined}
+            style={on ? { '--dash': dash, animationDelay: mounted ? '0ms' : `${120 + i * 70}ms` } : undefined}
           />
         );
       })}
@@ -45,6 +57,9 @@ export function Rings({ stats, celebrate }) {
   const label = STAGES.map((s) => `${s.label} ${stats[s.id].length}`).join(', ');
   // Giornata completa: tutto al centro -> anelli d'oro (restano d'oro finché resta tutto fatto).
   const golden = total > 0 && done === total;
+  const slots = ringSlots(stats);
+  const stageOf = {};
+  STAGES.forEach((st) => stats[st.id].forEach((it) => (stageOf[it.id] = st.id)));
   return (
     <div className={`rings ${celebrate ? 'celebrate victory' : ''} ${golden ? 'all-done golden' : ''}`}>
       <svg viewBox="0 0 200 200" role="img" aria-label={golden ? `Giornata completa: fatti tutti i ${total} impegni` : `Impegni di oggi: ${label}, fatti ${done} di ${total}`}>
@@ -57,7 +72,7 @@ export function Rings({ stats, celebrate }) {
           </linearGradient>
         </defs>
         {STAGES.map((s) => (
-          <StageRing key={s.id} stage={s} list={stats[s.id]} total={total} mounted={mounted} />
+          <StageRing key={s.id} stage={s} slots={slots} stageOf={stageOf} mounted={mounted} />
         ))}
       </svg>
       <div className="rings-center">

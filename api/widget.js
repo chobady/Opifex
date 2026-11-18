@@ -2,6 +2,8 @@
 import { fail, sameSecret, userDb, ownerUid, romeNow } from './_lib/fs.js';
 import { stageStats, isDone, isDueToday, isOverdue, sortItems, habitScheduled, doneOn } from '../src/lib/model.js';
 
+const W = { critico: 0, importante: 1, normale: 2 };
+
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   try {
@@ -21,6 +23,11 @@ export default async function handler(req, res) {
       time,
       theme: settings.theme || 'neon',
       rings: ['todo', 'doing', 'done'].map((k) => st[k].map((it) => it.priority || 'normale')),
+      // Fette fisse: ogni impegno ha il suo posto, uguale nei tre anelli.
+      slots: ['todo', 'doing', 'done']
+        .flatMap((k, ring) => st[k].map((it) => ({ it, ring })))
+        .sort((a, b) => (W[a.it.priority] ?? 2) - (W[b.it.priority] ?? 2) || (a.it.createdAt || 0) - (b.it.createdAt || 0) || String(a.it.id).localeCompare(String(b.it.id)))
+        .map(({ it, ring }) => ({ p: it.priority || 'normale', ring })),
       total: st.total,
       done: st.done.length,
       focus: focus.slice(0, 3).map(pick),
