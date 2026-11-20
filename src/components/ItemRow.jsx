@@ -1,3 +1,4 @@
+import { sfx } from '../lib/sound.js';
 import { useState } from 'react';
 import { Icon } from '../lib/icons.jsx';
 import { useApp } from '../lib/ctx.js';
@@ -109,7 +110,7 @@ function HabitDots({ item }) {
   );
 }
 
-export function ItemRow({ item, star = false, showType = false, showArea = true, day = null }) {
+export function ItemRow({ item, star = false, showType = false, showArea = true, day = null, steps = false }) {
   const { today, actions } = useApp();
   const [pop, setPop] = useState(false);
   const done = isDone(item) || (item.type === 'abitudine' ? doneOn(item, day || today) : day ? doneOn(item, day) : false);
@@ -117,8 +118,20 @@ export function ItemRow({ item, star = false, showType = false, showArea = true,
   const progress = item.type === 'obiettivo' ? goalProgress(item, itemById) : null;
   const doable = isDoable(item);
   const focused = item.focusDate === today;
+  const list = item.checklist || [];
+  const showSteps = steps && item.type !== 'abitudine' && !done && list.length > 0;
+  const tickStep = (c) => {
+    const checklist = list.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x));
+    const next = { ...item, checklist, updatedAt: Date.now() };
+    // Il primo passo fatto porta l'impegno "In corso".
+    if (!c.done && item.type === 'impegno' && (item.status || 'todo') === 'todo') next.status = 'doing';
+    if (c.done) sfx.undo();
+    else sfx.tap();
+    actions.save(next);
+    if (!c.done && checklist.every((x) => x.done)) actions.toast('Tutti i passi fatti: segna l\'impegno come completato.');
+  };
   return (
-    <div className={`row p-${item.priority} ${done ? 'is-done' : ''} ${pop ? 'pop' : ''} ${star ? 'has-star' : ''}`}>
+    <div className={`row p-${item.priority} ${done ? 'is-done' : ''} ${pop ? 'pop' : ''} ${star ? 'has-star' : ''} ${showSteps ? 'has-steps' : ''}`}>
       {doable ? (
         <button
           className="check"
@@ -161,6 +174,16 @@ export function ItemRow({ item, star = false, showType = false, showArea = true,
         </button>
       )}
       <span className="prio-tag">{PRIORITY[item.priority]?.label}</span>
+      {showSteps && (
+        <div className="row-steps">
+          {list.map((c) => (
+            <button key={c.id} className={`row-step ${c.done ? 'on' : ''}`} aria-pressed={c.done} onClick={() => tickStep(c)}>
+              <span className="row-step-box">{c.done && <Icon name="Check" size={12} strokeWidth={3} />}</span>
+              <span className="row-step-t">{c.t}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -104,7 +104,7 @@ export function Today() {
               <SectionTitle>Prima possibile</SectionTitle>
               <div className="list">
                 {asap.map((it) => (
-                  <ItemRow key={it.id} item={it} star />
+                  <ItemRow key={it.id} item={it} steps star />
                 ))}
               </div>
             </section>
@@ -210,7 +210,7 @@ export function Today() {
               <SectionTitle right={<span className="section-note">{weekGoals.filter(isDone).length}/{weekGoals.length}</span>}>Obiettivi della settimana</SectionTitle>
               <div className="list">
                 {weekGoals.map((it) => (
-                  <ItemRow key={it.id} item={it} showType />
+                  <ItemRow key={it.id} item={it} steps showType />
                 ))}
               </div>
             </section>
@@ -220,7 +220,7 @@ export function Today() {
             <SectionTitle right={<span className="section-note">{focus.length}/3</span>}>Focus di oggi</SectionTitle>
             <div className="list">
               {focus.map((it) => (
-                <ItemRow key={it.id} item={it} star />
+                <ItemRow key={it.id} item={it} steps star />
               ))}
             </div>
             {!focus.length && <p className="hint-line">Tocca la stella accanto a un impegno per metterlo qui. Massimo tre.</p>}
@@ -239,7 +239,7 @@ export function Today() {
               </SectionTitle>
               <div className="list">
                 {late.map((it) => (
-                  <ItemRow key={it.id} item={it} star />
+                  <ItemRow key={it.id} item={it} steps star />
                 ))}
               </div>
             </section>
@@ -250,7 +250,7 @@ export function Today() {
               <SectionTitle>Oggi</SectionTitle>
               <div className="list">
                 {now.map((it) => (
-                  <ItemRow key={it.id} item={it} star />
+                  <ItemRow key={it.id} item={it} steps star />
                 ))}
               </div>
             </section>
@@ -261,7 +261,7 @@ export function Today() {
               <SectionTitle>In arrivo</SectionTitle>
               <div className="list">
                 {soon.map((it) => (
-                  <ItemRow key={it.id} item={it} showType />
+                  <ItemRow key={it.id} item={it} steps showType />
                 ))}
               </div>
             </section>
