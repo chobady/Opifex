@@ -1,7 +1,6 @@
 // Livello dati: Firestore quando Firebase e' configurato, altrimenti localStorage
 // (modalita' locale: utile per provare l'app prima di collegare Firebase).
-import { collection, doc, onSnapshot, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { cloudEnabled, db } from './firebase.js';
+import { cloudEnabled, loadFirebase } from './firebase.js';
 
 const LOCAL_KEY = 'opifex.local.v1';
 
@@ -86,59 +85,54 @@ function readPhotos() {
 }
 
 /* ---------- cloud ---------- */
-const cloudStore = {
+// L'SDK di Firestore arriva dopo: intanto mostro l'ultima copia salvata sul telefono
+// (con ready: false, cosi' nessun calcolo automatico scrive dati vecchi).
+const CACHE_KEY = 'opifex.cache.v1';
+function readCache(uid) {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    return c && c.uid === uid ? c : null;
+  } catch {
+    return null;
+  }
+}
+let cacheTimer = null;
+function writeCache(uid, snap) {
+  clearTimeout(cacheTimer);
+  cacheTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ uid, items: snap.items, areas: snap.areas, settings: snap.settings }));
+    } catch {
+      /* spazio pieno: pazienza, la prossima apertura sara' solo un po' piu' lenta */
+    }
+  }, 800);
+}
+const cloud = () => loadFirebase().then((m) => m.cloudStore);
+const lazyStore = {
   subscribe(uid, cb, onError) {
-    const state = { items: [], areas: [], settings: {}, got: { items: false, areas: false, settings: false } };
-    const push = () =>
-      cb({
-        items: state.items,
-        areas: state.areas,
-        settings: state.settings,
-        ready: state.got.items && state.got.areas && state.got.settings,
-      });
-    const fail = (err) => onError && onError(err);
-    const u1 = onSnapshot(
-      collection(db, 'users', uid, 'items'),
-      (snap) => {
-        state.items = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-        state.got.items = true;
-        push();
-      },
-      fail,
-    );
-    const u2 = onSnapshot(
-      collection(db, 'users', uid, 'areas'),
-      (snap) => {
-        state.areas = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-        state.got.areas = true;
-        push();
-      },
-      fail,
-    );
-    const u3 = onSnapshot(
-      doc(db, 'users', uid, 'meta', 'settings'),
-      (snap) => {
-        state.settings = snap.data() || {};
-        state.got.settings = true;
-        push();
-      },
-      fail,
-    );
+    const cached = readCache(uid);
+    if (cached) cb({ items: cached.items || [], areas: cached.areas || [], settings: cached.settings || {}, ready: false, cached: true });
+    let off = null;
+    let stopped = false;
+    cloud().then((cs) => {
+      if (stopped) return;
+      off = cs.subscribe(
+        uid,
+        (snap) => {
+          if (!snap.ready && cached) return; // finche' Firestore non ha tutto, tengo la copia
+          cb(snap);
+          if (snap.ready) writeCache(uid, snap);
+        },
+        onError,
+      );
+    });
     return () => {
-      u1();
-      u2();
-      u3();
+      stopped = true;
+      if (off) off();
     };
   },
-  saveItem: (uid, item) => setDoc(doc(db, 'users', uid, 'items', item.id), clean(item)),
-  removeItem: (uid, id) => deleteDoc(doc(db, 'users', uid, 'items', id)),
-  saveArea: (uid, area) => setDoc(doc(db, 'users', uid, 'areas', area.id), clean(area)),
-  removeArea: (uid, id) => deleteDoc(doc(db, 'users', uid, 'areas', id)),
-  saveSettings: (uid, patch) => setDoc(doc(db, 'users', uid, 'meta', 'settings'), clean(patch), { merge: true }),
-  // Le foto stanno in documenti separati (max ~1 MB ciascuno), cosi' la lista resta leggera.
-  savePhoto: (uid, id, data) => setDoc(doc(db, 'users', uid, 'photos', id), { data, at: Date.now() }),
-  getPhoto: async (uid, id) => (await getDoc(doc(db, 'users', uid, 'photos', id))).data()?.data || null,
-  removePhoto: (uid, id) => deleteDoc(doc(db, 'users', uid, 'photos', id)),
 };
+for (const k of ['saveItem', 'removeItem', 'saveArea', 'removeArea', 'saveSettings', 'savePhoto', 'getPhoto', 'removePhoto'])
+  lazyStore[k] = (...args) => cloud().then((cs) => cs[k](...args));
 
-export const store = cloudEnabled ? cloudStore : localStore;
+export const store = cloudEnabled ? lazyStore : localStore;

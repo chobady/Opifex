@@ -9,7 +9,8 @@ import {
   behind, postpone, fitsIn, addDays, diffDays, isDone, sortItems, startOfWeek, longDate, newItem, durationLabel, PRIORITY,
 } from '../lib/model.js';
 
-export const reviewWeek = (today) => (new Date(`${today}T12:00:00`).getDay() === 0 ? addDays(today, 1) : startOfWeek(today));
+export { reviewWeek } from '../lib/model.js';
+import { reviewWeek } from '../lib/model.js';
 
 /* ---------- rimetti in ordine ---------- */
 function BehindRow({ item }) {

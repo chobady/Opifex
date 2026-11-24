@@ -6,8 +6,7 @@ import { Capture } from '../components/Capture.jsx';
 import { Rings, RingsLegend, AreaRing } from '../components/Rings.jsx';
 import { ItemRow } from '../components/ItemRow.jsx';
 import { Empty, SectionTitle } from '../components/ui.jsx';
-import { PRIORITIES, ringStats, stageStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled, habitStreak, upcoming, behind, startOfWeek, diffDays, relativeDate, monthLabel, addDays } from '../lib/model.js';
-import { reviewWeek } from '../components/Review.jsx';
+import { PRIORITIES, ringStats, stageStats, areaStats, isDoable, isDone, isDueToday, isOverdue, doneOn, sortItems, longDate, habitScheduled, habitStreak, upcoming, behind, startOfWeek, diffDays, relativeDate, monthLabel, addDays, reviewWeek } from '../lib/model.js';
 import { cloudEnabled } from '../lib/firebase.js';
 
 export function Today() {
@@ -118,24 +117,31 @@ export function Today() {
                   const done = doneOn(it, today);
                   const st = habitStreak(it, today);
                   const area = areas.find((a) => a.id === it.area);
+                  const routine = (it.checklist || []).length > 0 && !done;
                   return (
-                    <button
-                      key={it.id}
-                      className={`habit-chip ${done ? 'on' : ''}`}
-                      aria-pressed={done}
-                      aria-label={`${done ? 'Annulla' : 'Segna fatta'}: ${it.title}`}
-                      onClick={() => actions.toggleDone(it)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        actions.edit(it);
-                      }}
-                    >
-                      <span className="habit-chip-ico">
-                        <Icon name={done ? 'Check' : area?.icon || 'Repeat'} size={16} strokeWidth={done ? 3 : 2} />
-                      </span>
-                      <span className="habit-chip-name">{it.title || 'Abitudine'}</span>
-                      {st.n > 0 && <span className="habit-chip-streak">{st.n}</span>}
-                    </button>
+                    <span key={it.id} className="habit-item">
+                      <button
+                        className={`habit-chip ${done ? 'on' : ''}`}
+                        aria-pressed={done}
+                        aria-label={`${done ? 'Annulla' : 'Segna fatta'}: ${it.title}`}
+                        onClick={() => actions.toggleDone(it)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          actions.edit(it);
+                        }}
+                      >
+                        <span className="habit-chip-ico">
+                          <Icon name={done ? 'Check' : area?.icon || 'Repeat'} size={16} strokeWidth={done ? 3 : 2} />
+                        </span>
+                        <span className="habit-chip-name">{it.title || 'Abitudine'}</span>
+                        {st.n > 0 && <span className="habit-chip-streak">{st.n}</span>}
+                      </button>
+                      {routine && (
+                        <button className="habit-play" aria-label={`Avvia la routine: ${it.title}`} onClick={() => actions.focus(it)}>
+                          <Icon name="Play" size={16} />
+                        </button>
+                      )}
+                    </span>
                   );
                 })}
               </div>

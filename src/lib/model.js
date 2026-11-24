@@ -471,3 +471,6 @@ export function personItems(person, items) {
     return !!w && !!first && (w.includes(name) || w.split(/[^\p{L}]+/u).includes(first));
   });
 }
+
+// Settimana a cui si riferisce la revisione (di domenica vale gia' la prossima).
+export const reviewWeek = (today) => (new Date(`${today}T12:00:00`).getDay() === 0 ? addDays(today, 1) : startOfWeek(today));

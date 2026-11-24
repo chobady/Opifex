@@ -1,24 +1,47 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppCtx } from './lib/ctx.js';
 import { Icon } from './lib/icons.jsx';
 import { sfx } from './lib/sound.js';
 import { store } from './lib/store.js';
-import { cloudEnabled, onAuth } from './lib/firebase.js';
+import { cloudEnabled, onAuth, lastUser } from './lib/firebase.js';
 import { newItem, complete, reopen, isDone, todayStr, relativeDate, uid, toggleHabitDay, habitStreak, doneOn } from './lib/model.js';
 import { BADGES, badgeStats, earnedBadges } from './lib/badges.js';
 import { Today } from './views/Today.jsx';
-import { Calendar } from './views/Calendar.jsx';
-import { Board } from './views/Board.jsx';
-import { Spaces } from './views/Spaces.jsx';
-import { Assistant } from './views/Assistant.jsx';
 import { Login, Logo } from './views/Login.jsx';
-import { Editor } from './components/Editor.jsx';
-import { Proposals, SearchSheet, AreaSheet, AreaEditor, SettingsSheet, BoughtSheet } from './components/Sheets.jsx';
-import { Advisor } from './components/Advisor.jsx';
-import { Focus } from './components/Focus.jsx';
-import { PersonSheet } from './components/People.jsx';
-import { WaitingSheet } from './components/Waiting.jsx';
-import { CatchUp, TimeSheet, WeeklyReview } from './components/Review.jsx';
+// Le parti che non servono all'apertura arrivano in pacchetti separati, quando le apri.
+function lazyNamed(load, name) {
+  return lazy(() => load().then((m) => ({ default: m[name] })));
+}
+// Dopo l'avvio scarico in sottofondo le parti piu' usate, cosi' poi si aprono all'istante.
+function preload() {
+  const run = () => {
+    import('./components/Editor.jsx');
+    import('./components/Sheets.jsx');
+    import('./views/Board.jsx');
+    import('./views/Calendar.jsx');
+    import('./views/Spaces.jsx');
+  };
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 });
+  else setTimeout(run, 1500);
+}
+const Calendar = lazyNamed(() => import('./views/Calendar.jsx'), 'Calendar');
+const Board = lazyNamed(() => import('./views/Board.jsx'), 'Board');
+const Spaces = lazyNamed(() => import('./views/Spaces.jsx'), 'Spaces');
+const Assistant = lazyNamed(() => import('./views/Assistant.jsx'), 'Assistant');
+const Editor = lazyNamed(() => import('./components/Editor.jsx'), 'Editor');
+const Proposals = lazyNamed(() => import('./components/Sheets.jsx'), 'Proposals');
+const SearchSheet = lazyNamed(() => import('./components/Sheets.jsx'), 'SearchSheet');
+const AreaSheet = lazyNamed(() => import('./components/Sheets.jsx'), 'AreaSheet');
+const AreaEditor = lazyNamed(() => import('./components/Sheets.jsx'), 'AreaEditor');
+const SettingsSheet = lazyNamed(() => import('./components/Sheets.jsx'), 'SettingsSheet');
+const BoughtSheet = lazyNamed(() => import('./components/Sheets.jsx'), 'BoughtSheet');
+const Advisor = lazyNamed(() => import('./components/Advisor.jsx'), 'Advisor');
+const Focus = lazyNamed(() => import('./components/Focus.jsx'), 'Focus');
+const PersonSheet = lazyNamed(() => import('./components/People.jsx'), 'PersonSheet');
+const WaitingSheet = lazyNamed(() => import('./components/Waiting.jsx'), 'WaitingSheet');
+const CatchUp = lazyNamed(() => import('./components/Review.jsx'), 'CatchUp');
+const TimeSheet = lazyNamed(() => import('./components/Review.jsx'), 'TimeSheet');
+const WeeklyReview = lazyNamed(() => import('./components/Review.jsx'), 'WeeklyReview');
 
 const NAV = [
   { id: 'oggi', label: 'Oggi', icon: 'CircleDot' },
@@ -29,7 +52,9 @@ const NAV = [
 ];
 
 export default function App() {
-  const [user, setUser] = useState(cloudEnabled ? undefined : { uid: 'local', email: null });
+  // Se sei gia' entrato da questo telefono parto subito con l'ultimo utente;
+  // Firebase conferma (o ti rimanda al login) appena si e' caricato.
+  const [user, setUser] = useState(cloudEnabled ? lastUser() || undefined : { uid: 'local', email: null });
   useEffect(() => (cloudEnabled ? onAuth((u) => setUser(u || null)) : undefined), []);
   if (user === undefined)
     return (
@@ -70,6 +95,7 @@ function Shell({ user }) {
   const toastTimer = useRef(null);
 
   useEffect(() => store.subscribe(user.uid, setData, () => setSyncError(true)), [user.uid]);
+  useEffect(preload, []);
 
   const { items, areas } = data;
   const announced = useRef(new Set());
@@ -384,13 +410,16 @@ function Shell({ user }) {
             </div>
           )}
           {view === 'oggi' && <Today />}
-          {view === 'calendario' && <Calendar />}
-          {view === 'bacheca' && <Board />}
-          {view === 'spazi' && <Spaces />}
-          {view === 'assistente' && <Assistant />}
+          <Suspense fallback={<div className="view-loading" aria-label="Caricamento" />}>
+            {view === 'calendario' && <Calendar />}
+            {view === 'bacheca' && <Board />}
+            {view === 'spazi' && <Spaces />}
+            {view === 'assistente' && <Assistant />}
+          </Suspense>
         </main>
       </div>
 
+      <Suspense fallback={null}>
       {sheet?.kind === 'settings' && <SettingsSheet onClose={closeSheet} />}
       {sheet?.kind === 'search' && <SearchSheet onClose={closeSheet} />}
       {sheet?.kind === 'bought' && itemById[sheet.itemId] && <BoughtSheet item={itemById[sheet.itemId]} onClose={closeSheet} />}
@@ -430,6 +459,7 @@ function Shell({ user }) {
         />
       )}
       {focus && itemById[focus.itemId] && <Focus item={itemById[focus.itemId]} onClose={() => (sfx.close(), setFocus(null))} />}
+      </Suspense>
       {toast && (
         <div key={toast.id} className="toast" role="status">
           {toast.text}

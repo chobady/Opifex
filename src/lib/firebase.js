@@ -1,17 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-} from 'firebase/auth';
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-} from 'firebase/firestore';
+// Parte leggera di Firebase: configurazione e funzioni che caricano l'SDK
+// (Auth + Firestore, ~900 KB) solo quando serve, cosi' la Home si apre subito.
 import { parseFirebaseConfig } from '../../shared/parseConfig.js';
 import { COMMITTED_FIREBASE_CONFIG } from '../../shared/firebase.committed.js';
 
@@ -21,29 +9,56 @@ export const firebaseConfig =
 
 export const cloudEnabled = !!firebaseConfig;
 
-let app = null;
-export let auth = null;
-export let db = null;
+let sdk = null;
+export const loadFirebase = () => (sdk ||= import('./firebase-sdk.js'));
 
-if (cloudEnabled) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
+// Ultimo utente entrato: permette di mostrare subito l'app mentre l'SDK si carica.
+const USER_KEY = 'opifex.user.v1';
+export function lastUser() {
   try {
-    db = initializeFirestore(app, {
-      ignoreUndefinedProperties: true,
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-    });
+    const u = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
+    return u && u.uid ? u : null;
   } catch {
-    db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+    return null;
+  }
+}
+function rememberUser(u) {
+  try {
+    if (u) localStorage.setItem(USER_KEY, JSON.stringify({ uid: u.uid, email: u.email || null }));
+    else localStorage.removeItem(USER_KEY);
+  } catch {
+    /* storage non disponibile */
   }
 }
 
-export const onAuth = (cb) => onAuthStateChanged(auth, cb);
-export const login = (email, pass) => signInWithEmailAndPassword(auth, email, pass);
-export const register = (email, pass) => createUserWithEmailAndPassword(auth, email, pass);
-export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
-export const logout = () => signOut(auth);
-export const idToken = async () => (auth?.currentUser ? auth.currentUser.getIdToken() : null);
+export function onAuth(cb) {
+  let off = null;
+  let stopped = false;
+  loadFirebase().then((m) => {
+    if (stopped) return;
+    off = m.onAuth((u) => {
+      rememberUser(u);
+      cb(u ? { uid: u.uid, email: u.email || null } : null);
+    });
+  });
+  return () => {
+    stopped = true;
+    if (off) off();
+  };
+}
+export const login = async (email, pass) => (await loadFirebase()).login(email, pass);
+export const register = async (email, pass) => (await loadFirebase()).register(email, pass);
+export const resetPassword = async (email) => (await loadFirebase()).resetPassword(email);
+export const logout = async () => {
+  rememberUser(null);
+  try {
+    localStorage.removeItem('opifex.cache.v1');
+  } catch {
+    /* niente */
+  }
+  return (await loadFirebase()).logout();
+};
+export const idToken = async () => (cloudEnabled ? (await loadFirebase()).idToken() : null);
 
 export function authErrorMessage(err) {
   const code = err?.code || '';
